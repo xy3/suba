@@ -18,19 +18,30 @@ Suba rips a minute of audio from a dialogue-heavy part of your video, transcribe
 
 ## Install
 
+```bash
+git clone https://github.com/xy3/suba
+cd suba
+uv tool install . --with openai-whisper
 ```
-ffmpeg          # you already have this
-pip install -r requirements.txt
+
+Now `suba` is on your PATH. One command, done.
+
+If you already have openai-whisper installed system-wide and don't want to download it again:
+
+```bash
+pip install --break-system-packages .
 ```
+
+Prerequisites: `ffmpeg`, Python 3.12+.
 
 ## Use
 
-```
-python main.py subs.srt movie.mkv
+```bash
+suba subs.srt movie.mkv
 ```
 
-```
-python main.py subs.vtt movie.mp4 -o fixed.srt -m small -d 120 -t 1800
+```bash
+suba subs.vtt movie.mp4 -o fixed.srt -m small -d 120 -t 1800
 ```
 
 | Flag | What |

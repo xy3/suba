@@ -10,7 +10,13 @@ import sys
 import tempfile
 from typing import Optional
 
-import whisper
+try:
+    import whisper
+except ImportError:
+    sys.exit(
+        "openai-whisper is not installed.\n"
+        "Install it first:  pip install openai-whisper"
+    )
 
 
 def ts_to_seconds(ts: str) -> float:
