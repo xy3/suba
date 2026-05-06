@@ -24,8 +24,6 @@ cd suba
 uv tool install . --with openai-whisper
 ```
 
-Now `suba` is on your PATH. One command, done.
-
 If you already have openai-whisper installed system-wide and don't want to download it again:
 
 ```bash
@@ -41,7 +39,8 @@ suba subs.srt movie.mkv
 ```
 
 ```bash
-suba subs.vtt movie.mp4 -o fixed.srt -m small -d 120 -t 1800
+# output the fixed subtitles to a file (srt or vtt)
+suba subs.vtt movie.mp4 -o fixed.srt
 ```
 
 | Flag | What |
