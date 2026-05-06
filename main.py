@@ -184,6 +184,24 @@ def find_best_match(
     return best
 
 
+def seconds_to_srt_ts(s: float) -> str:
+    """Convert float seconds to SRT timestamp HH:MM:SS,mmm."""
+    s = max(0, s)
+    h, r = divmod(int(s), 3600)
+    m, sec = divmod(r, 60)
+    ms = int((s - int(s)) * 1000)
+    return f'{h:02d}:{m:02d}:{sec:02d},{ms:03d}'
+
+
+def write_srt(path: str, entries: list[dict]) -> None:
+    """Write shifted entries to an SRT file."""
+    with open(path, 'w', encoding='utf-8') as f:
+        for i, e in enumerate(entries, 1):
+            f.write(f'{i}\n')
+            f.write(f'{seconds_to_srt_ts(e["start"])} --> {seconds_to_srt_ts(e["end"])}\n')
+            f.write(f'{e["text"]}\n\n')
+
+
 def fmt_time(s: float) -> str:
     """Format seconds as HH:MM:SS.mmm (with optional leading minus)."""
     sign = '-' if s < 0 else ''
@@ -206,6 +224,8 @@ def main():
                     help='Manual start time in the video (auto-detected if omitted)')
     ap.add_argument('--threshold', type=float, default=0.2,
                     help='Minimum text-similarity to accept a match [default: 0.2]')
+    ap.add_argument('--output', '-o', default=None,
+                    help='Write fixed subtitles to this SRT file')
     args = ap.parse_args()
 
     # 1. Parse subtitles
@@ -276,6 +296,16 @@ def main():
         else:
             print('  → Subtitles are perfectly synced')
         print('=' * 58)
+
+        # 7. Write fixed SRT if requested
+        if args.output:
+            correction = -diff
+            shifted = [
+                {'start': e['start'] + correction, 'end': e['end'] + correction, 'text': e['text']}
+                for e in entries
+            ]
+            write_srt(args.output, shifted)
+            print(f'\nFixed subtitles written to: {args.output}')
 
     finally:
         if os.path.exists(audio_path):
