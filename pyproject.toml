@@ -1,0 +1,9 @@
+[project]
+name = "suba"
+version = "0.1.0"
+description = "Detect subtitle sync offset using Whisper transcription"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+suba = "main:main"
