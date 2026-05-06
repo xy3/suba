@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 from typing import Optional
+from pathlib import Path
 
 try:
     import whisper
@@ -199,12 +200,29 @@ def seconds_to_srt_ts(s: float) -> str:
     return f'{h:02d}:{m:02d}:{sec:02d},{ms:03d}'
 
 
-def write_srt(path: str, entries: list[dict]) -> None:
-    """Write shifted entries to an SRT file."""
+def seconds_to_vtt_ts(s: float) -> str:
+    """Convert float seconds to VTT timestamp HH:MM:SS.mmm."""
+    s = max(0, s)
+    h, r = divmod(int(s), 3600)
+    m, sec = divmod(r, 60)
+    ms = int((s - int(s)) * 1000)
+    return f'{h:02d}:{m:02d}:{sec:02d}.{ms:03d}'
+
+
+def write_subtitle(path: str, entries: list[dict]) -> None:
+    """Write shifted entries to SRT or VTT, auto-detected from extension."""
+    ext = Path(path).suffix.lower()
     with open(path, 'w', encoding='utf-8') as f:
+        if ext == '.vtt':
+            f.write('WEBVTT\n\n')
+            ts_fn = seconds_to_vtt_ts
+        else:
+            ts_fn = seconds_to_srt_ts
+
         for i, e in enumerate(entries, 1):
-            f.write(f'{i}\n')
-            f.write(f'{seconds_to_srt_ts(e["start"])} --> {seconds_to_srt_ts(e["end"])}\n')
+            if ext == '.srt':
+                f.write(f'{i}\n')
+            f.write(f'{ts_fn(e["start"])} --> {ts_fn(e["end"])}\n')
             f.write(f'{e["text"]}\n\n')
 
 
@@ -231,7 +249,7 @@ def main():
     ap.add_argument('--threshold', type=float, default=0.2,
                     help='Minimum text-similarity to accept a match [default: 0.2]')
     ap.add_argument('--output', '-o', default=None,
-                    help='Write fixed subtitles to this SRT file')
+                    help='Write fixed subtitles to this file (.srt or .vtt)')
     args = ap.parse_args()
 
     # 1. Parse subtitles
@@ -310,7 +328,7 @@ def main():
                 {'start': e['start'] + correction, 'end': e['end'] + correction, 'text': e['text']}
                 for e in entries
             ]
-            write_srt(args.output, shifted)
+            write_subtitle(args.output, shifted)
             print(f'\nFixed subtitles written to: {args.output}')
 
     finally:
