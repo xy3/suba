@@ -18,11 +18,19 @@ Suba rips a minute of audio from a dialogue-heavy part of your video, transcribe
 
 ## Install
 
+Prerequisites: `ffmpeg` and [`uv`](https://docs.astral.sh/uv/):
+
+```bash
+git clone https://github.com/xy3/suba
+cd suba
+uv tool install . --with openai-whisper
+```
+
+Or install directly from GitHub:
+
 ```bash
 uv tool install git+https://github.com/xy3/suba --with openai-whisper
 ```
-
-Prerequisites: `ffmpeg`, Python 3.12+.
 
 ## Use
 
@@ -37,8 +45,8 @@ suba subs.vtt movie.mp4 -o fixed.srt
 
 | Flag | What |
 |------|------|
-| `-o` | Write corrected SRT |
-| `-m` | Whisper model (`base`, `small`, `medium`, `large`) |
-| `-d` | Audio duration in seconds (default 60) |
-| `-t` | Manual start time in seconds |
+| `-o`, `--output` | Write corrected SRT/VTT |
+| `-m`, `--model` | Whisper model (`base`, `small`, `medium`, `large`) |
+| `-d`, `--duration` | Audio duration in seconds (default 60) |
+| `-t`, `--start` | Manual start time in seconds |
 | `--threshold` | Minimum similarity to accept a match (default 0.2) |
