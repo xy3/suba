@@ -1,4 +1,4 @@
-# suba
+8iuk# suba
 
 > Fix subtitle sync with Whisper, because `h` and `g` are for cowards.
 
@@ -19,9 +19,7 @@ Suba rips a minute of audio from a dialogue-heavy part of your video, transcribe
 ## Install
 
 ```bash
-git clone https://github.com/xy3/suba
-cd suba
-uv tool install . --with openai-whisper
+uv tool install git+https://github.com/xy3/suba --with openai-whisper
 ```
 
 If you already have openai-whisper installed system-wide and don't want to download it again:
