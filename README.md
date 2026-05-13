@@ -22,14 +22,6 @@ Suba rips a minute of audio from a dialogue-heavy part of your video, transcribe
 uv tool install git+https://github.com/xy3/suba --with openai-whisper
 ```
 
-If you already have openai-whisper installed system-wide and don't want to download it again:
-
-```bash
-git clone https://github.com/xy3/suba
-cd suba
-pip install .
-```
-
 Prerequisites: `ffmpeg`, Python 3.12+.
 
 ## Use
