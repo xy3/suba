@@ -1,4 +1,4 @@
-8iuk# suba
+# suba
 
 > Fix subtitle sync with Whisper, because `h` and `g` are for cowards.
 
