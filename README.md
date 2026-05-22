@@ -21,12 +21,11 @@ That's it. One command — no clone, no build step.
 ## Use
 
 ```bash
-suba subs.srt movie.mkv
+suba subs.srt movie.mkv -o fixed.srt
 ```
 
 ```bash
-# output the fixed subtitles to a file (srt or vtt)
-suba subs.vtt movie.mp4 -o fixed.srt
+suba <subtitles> <video>
 ```
 
 | Flag | What |
