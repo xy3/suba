@@ -25,7 +25,7 @@ suba subs.srt movie.mkv -o fixed.srt
 ```
 
 ```bash
-suba <subtitles> <video>
+suba <subtitles> <video> -o <output.srt|vtt>
 ```
 
 | Flag | What |
