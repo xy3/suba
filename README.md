@@ -8,21 +8,15 @@ You downloaded subtitles. The first line pops up during the studio logo. By the 
 
 Suba rips a minute of audio from a dialogue-heavy part of your video, transcribes it with Whisper, matches the transcription against the subtitle file, and tells you the offset. Then it writes out a corrected SRT so you can stop thinking about this.
 
-## How it works
-
-- Finds the densest 60 seconds of subtitles (more lines = more talking, probably)
-- Extracts that audio with ffmpeg
-- Transcribes it with Whisper
-- Slides windows of the transcription over each candidate subtitle line, scoring by text similarity and timestamp proximity
-- Shifts all timestamps by the detected offset and writes a fixed SRT
-
 ## Install
 
-You need `ffmpeg`. Then:
+You need `ffmpeg` and [`uv`](https://docs.astral.sh/uv/). Then:
 
 ```bash
 uv tool install git+https://github.com/xy3/suba --with openai-whisper
 ```
+
+That's it. One command — no clone, no build step.
 
 ## Use
 
@@ -42,3 +36,11 @@ suba subs.vtt movie.mp4 -o fixed.srt
 | `-d`, `--duration` | Audio duration in seconds (default 60) |
 | `-t`, `--start` | Manual start time in seconds |
 | `--threshold` | Minimum similarity to accept a match (default 0.2) |
+
+## How it works
+
+- Finds the densest 60 seconds of subtitles (more lines = more talking, probably)
+- Extracts that audio with ffmpeg
+- Transcribes it with Whisper
+- Slides windows of the transcription over each candidate subtitle line, scoring by text similarity and timestamp proximity
+- Shifts all timestamps by the detected offset and writes a fixed SRT
