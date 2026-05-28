@@ -16,6 +16,12 @@ You need `ffmpeg` and [`uv`](https://docs.astral.sh/uv/). Then:
 uv tool install suba --with openai-whisper
 ```
 
+Or with pip:
+
+```bash
+pip install suba openai-whisper
+```
+
 That's it. One command — no clone, no build step.
 
 ## Use
