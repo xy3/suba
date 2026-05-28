@@ -2,6 +2,7 @@
 name = "suba"
 version = "0.1.0"
 description = "Detect subtitle sync offset using Whisper transcription"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
