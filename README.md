@@ -13,7 +13,7 @@ Suba rips a minute of audio from a dialogue-heavy part of your video, transcribe
 You need `ffmpeg` and [`uv`](https://docs.astral.sh/uv/). Then:
 
 ```bash
-uv tool install git+https://github.com/xy3/suba --with openai-whisper
+uv tool install suba --with openai-whisper
 ```
 
 That's it. One command — no clone, no build step.
