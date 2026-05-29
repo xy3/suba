@@ -49,3 +49,6 @@ suba <subtitles> <video> -o <output.srt|vtt>
 - Transcribes it with Whisper
 - Slides windows of the transcription over each candidate subtitle line, scoring by text similarity and timestamp proximity
 - Shifts all timestamps by the detected offset and writes a fixed SRT
+
+
+**🌟 Star this repository if you find it helpful!**
