@@ -717,11 +717,6 @@ def timing_alignment(
     hi = entries[-1]["end"] + max_shift + 30.0
     if total:
         hi = min(hi, total)
-        if entries[-1]["end"] < total * 0.6 and verbose:
-            print(
-                f"  note: subtitles cover {100 * entries[-1]['end'] / total:.0f}% "
-                f"of the runtime; aligning on that part only"
-            )
     span = hi - lo
     if span < 30.0:
         return None
@@ -1027,6 +1022,13 @@ def main():
         help="Skip refining a text match against the waveform",
     )
     ap.add_argument(
+        "--min-coverage",
+        type=float,
+        default=0.7,
+        help="Reject subtitles reaching less than this fraction of the runtime "
+        "[default: 0.7; use 0 to allow any]",
+    )
+    ap.add_argument(
         "--no-rescale",
         action="store_true",
         help="Don't test for PAL/NTSC frame-rate conversions, only a shift",
@@ -1045,6 +1047,27 @@ def main():
         print("error: no subtitle entries found", file=sys.stderr)
         sys.exit(1)
     print(f"Parsed {len(entries)} subtitle entries")
+
+    # A track that stops a third of the way in is one disc of a multi-disc rip,
+    # not a subtitle file for this film.  Aligning it would succeed on the part
+    # it has and leave the rest of the movie silent, so refuse it up front,
+    # before spending anything on audio.
+    runtime = media_duration(args.video)
+    if runtime and args.min_coverage > 0:
+        covered = entries[-1]["end"] / runtime
+        if covered < args.min_coverage:
+            print(
+                f"error: these subtitles run out at {fmt_time(entries[-1]['end'])}, "
+                f"only {covered:.0%} of the {fmt_time(runtime)} film.\n"
+                f"       That is usually one disc of a multi-disc rip. Syncing "
+                f"cannot fill in the missing part —\n"
+                f"       find a complete file, or pass --min-coverage 0 to align "
+                f"the part that is there anyway.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if covered < 0.9:
+            print(f"  (subtitles reach {covered:.0%} of the runtime)")
 
     # 2. Resolve languages as far as we can before touching the audio
     audio_lang = normalize_lang(args.audio_lang)

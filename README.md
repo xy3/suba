@@ -48,6 +48,7 @@ suba <subtitles> <video> -o <output.srt|vtt>
 | `--min-peak-ratio` | How clearly the winning offset must beat the runner-up (default 1.4) |
 | `--no-refine` | Don't sharpen a text match against the waveform |
 | `--no-rescale` | Don't test for PAL/NTSC frame-rate conversions, only a shift |
+| `--min-coverage` | Reject subtitles reaching less than this much of the runtime (default 0.7) |
 
 ## Different languages
 
@@ -112,6 +113,25 @@ That's a real Italian track against a 2h30m film. Before: 33% of its lines
 landed within a second of the right moment, and the worst were fifteen seconds
 out. After: 99.6%, with the worst at 0.4s. Pass `--no-rescale` to only ever
 shift.
+
+## Half a subtitle file is not a subtitle file
+
+Subtitle sites still carry tracks split across two discs, and a `CD1` file looks
+exactly like a normal one until you notice its last line lands 90 minutes into a
+four-hour film. Suba can align that perfectly well — on the half it has — and
+hand you a file that dies at the intermission.
+
+So it checks first and refuses:
+
+```
+error: these subtitles run out at 01:39:38.435, only 43% of the 03:53:15.014 film.
+       That is usually one disc of a multi-disc rip. Syncing cannot fill in the
+       missing part — find a complete file, or pass --min-coverage 0 to align
+       the part that is there anyway.
+```
+
+The check runs before any audio is read, so it costs nothing. Ending at 90% is
+normal — that's end credits — and only gets a passing mention.
 
 ## Finding the talking
 
