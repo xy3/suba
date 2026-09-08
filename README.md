@@ -45,8 +45,9 @@ suba <subtitles> <video> -o <output.srt|vtt>
 | `-S`, `--sub-lang` | Language of the subtitle file (`it`, `italian`, `ita`) |
 | `--align` | Force a strategy: `auto`, `text`, `translate`, `timing` |
 | `--max-shift` | Largest offset to search for in timing mode (default 60 s) |
-| `--min-peak-ratio` | How clearly the winning offset must beat the runner-up (default 1.15) |
+| `--min-peak-ratio` | How clearly the winning offset must beat the runner-up (default 1.4) |
 | `--no-refine` | Don't sharpen a text match against the waveform |
+| `--no-rescale` | Don't test for PAL/NTSC frame-rate conversions, only a shift |
 
 ## Different languages
 
@@ -90,6 +91,46 @@ Three things worth knowing about timing mode:
   `--threshold` barely discriminates in this mode.
 - **It's fast**, because it never transcribes. Pass both languages and Whisper
   is skipped entirely.
+
+## Subtitles that drift
+
+Some subtitles don't just start late — they run at the wrong *speed*. A track
+ripped from a PAL disc is timed for 25 fps, and against a 23.976 fps video it
+gains about four seconds every hundred. It starts nearly right and ends minutes
+out, and no single offset can fix it.
+
+Suba tests the standard conversions alongside the plain shift and reports one if
+it fits better:
+
+```
+matched on speech modulation
+frame-rate conversion detected: 25 → 23.976 fps (PAL)
+SYNC OFFSET: +1.200 s
+```
+
+That's a real Italian track against a 2h30m film. Before: 33% of its lines
+landed within a second of the right moment, and the worst were fifteen seconds
+out. After: 99.6%, with the worst at 0.4s. Pass `--no-rescale` to only ever
+shift.
+
+## Finding the talking
+
+Timing alignment lives or dies on knowing which parts of the audio are speech,
+and there are two ways to guess, neither of which wins everywhere:
+
+- **Loudness** in the speech band. Near-perfect on clean audio with real silence
+  between lines.
+- **Modulation** — how much the speech-band energy wobbles around its own local
+  average. Speech pulses at the syllable rate; an orchestra doesn't.
+
+On a scored action film, loudness is worse than useless: the loudest frames are
+music and effects, so the mask tracks the score and *anti*-correlates with the
+dialogue. Measured on one, every candidate offset scored negative — there was no
+alignment to find at all. Modulation took the same film from -0.09 to +0.52.
+
+But modulation smooths, and smoothing costs precision: on clean audio loudness
+scores 0.996 where modulation manages 0.69. So suba computes both, and picks
+whichever correlates better against your subtitles. It says which one won.
 
 It's also *precise*, and that precision is now lent to the other two strategies.
 Matching text tells you which line is playing, but only as accurately as the

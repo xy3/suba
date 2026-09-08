@@ -468,21 +468,17 @@ def _build_mask(intervals, t0: float, t1: float, res: float = MASK_RESOLUTION):
 
 SPEECH_LO, SPEECH_HI = 300.0, 3400.0  # the band human speech lives in
 
-# A film is not 90% talking.  Whatever the mix does to absolute levels, hold the
-# detected speech fraction inside a plausible range so the mask keeps some
-# silence to correlate against.  Measured across a feature film, anything from
-# 0.30 to 0.50 gives near-identical results, so the exact value is not delicate.
-MIN_SPEECH, MAX_SPEECH = 0.30, 0.50
+# Fraction of frames the mask calls speech.  Measured across two very different
+# films, anything from 0.3 to 0.5 behaves the same, so this is not delicate.
+SPEECH_FRACTION = 0.40
+
+# Rival lags nearer than this to the winner are the shoulders of the same peak,
+# not competing alignments, so they don't count when judging confidence.
+PEAK_GUARD = 15.0
 
 
-def speech_mask_from_audio(path: str, res: float = MASK_RESOLUTION):
-    """Binary speech mask off the waveform, using speech-band energy.
-
-    Measuring only 300-3400 Hz keeps an orchestral score from reading as
-    dialogue, which is what a broadband RMS does on a scored film.  The file is
-    read in chunks so a four-hour movie doesn't land in memory at once.
-    Returns None when the result looks degenerate, so the caller can fall back.
-    """
+def _speech_envelope(path: str, res: float):
+    """Speech-band energy per frame, in dB. Read in chunks; None if unusable."""
     import numpy as np
 
     try:
@@ -492,13 +488,12 @@ def speech_mask_from_audio(path: str, res: float = MASK_RESOLUTION):
     with w:
         if w.getsampwidth() != 2 or w.getnchannels() != 1:
             return None
-        rate = w.getframerate()
-        total = w.getnframes()
+        rate, total = w.getframerate(), w.getnframes()
         if not rate or total <= 0:
             return None
         size = max(1, int(round(res * rate)))
         count = total // size
-        if count < 2:
+        if count < 40:
             return None
 
         freq = np.fft.rfftfreq(size, 1.0 / rate)
@@ -517,35 +512,73 @@ def speech_mask_from_audio(path: str, res: float = MASK_RESOLUTION):
                 break
             block = raw[: got * size].astype(np.float32).reshape(got, size) * window
             power = np.abs(np.fft.rfft(block, axis=1)) ** 2
-            db[filled : filled + got] = 10 * np.log10(
-                power[:, band].sum(axis=1) + 1e-6
-            )
+            db[filled : filled + got] = 10 * np.log10(power[:, band].sum(axis=1) + 1e-6)
             filled += got
-    if filled < 2:
-        return None
-    db = db[:filled]
+    return db[:filled] if filled >= 40 else None
 
-    floor, peak = np.percentile(db, 5), np.percentile(db, 95)
-    if peak - floor < 3.0:  # no contrast at all: silence, or a solid wall of noise
-        return None
 
-    # Start from a level-relative threshold, then pull it back if it claims an
-    # implausible share of the film either way.
-    threshold = floor + 0.35 * (peak - floor)
-    fraction = float((db > threshold).mean())
-    if fraction > MAX_SPEECH:
-        threshold = float(np.quantile(db, 1.0 - MAX_SPEECH))
-    elif fraction < MIN_SPEECH:
-        threshold = float(np.quantile(db, 1.0 - MIN_SPEECH))
+def _threshold_mask(feature, fraction: float = SPEECH_FRACTION):
+    """Take the top `fraction` of frames by some speech-likeness score."""
+    import numpy as np
 
-    # Deliberately no smoothing.  Bridging short gaps seems tidier but wrecks
-    # the result: on a feature film it dropped the peak-to-rival ratio from 8x
-    # to under 2x, because the brief pauses it fills in are precisely the detail
-    # that distinguishes the true offset from a coincidence.
-    mask = (db > threshold).astype(np.float64)
-    if not 0.05 < mask.mean() < 0.95:
-        return None
-    return mask
+    mask = (feature > np.quantile(feature, 1.0 - fraction)).astype(np.float64)
+    return mask if 0.05 < mask.mean() < 0.95 else None
+
+
+def _modulation(db, res: float, window_s: float = 0.5):
+    """How much the speech-band energy wobbles around its own local average.
+
+    Speech pulses at the syllable rate; a sustained orchestral bed does not.
+    """
+    import numpy as np
+
+    span = max(2, int(round(window_s / res)))
+    n = len(db)
+    idx = np.arange(n)
+    lo = np.maximum(0, idx - span // 2)
+    hi = np.minimum(n, idx + span // 2)
+    width = (hi - lo).astype(np.float64)
+
+    csum = np.concatenate(([0.0], np.cumsum(db, dtype=np.float64)))
+    swing = db - (csum[hi] - csum[lo]) / width
+    csum2 = np.concatenate(([0.0], np.cumsum(swing.astype(np.float64) ** 2)))
+    return np.sqrt((csum2[hi] - csum2[lo]) / width)
+
+
+def speech_mask_candidates(
+    path: str, res: float = MASK_RESOLUTION
+) -> list[tuple[str, object]]:
+    """Two ways of calling a frame speech, because neither wins everywhere.
+
+    *Loudness* is near-perfect on clean audio with real silence between lines,
+    and useless on a scored action film: there the loudest frames are music and
+    effects, so the mask tracks the score and *anti*-correlates with dialogue —
+    measured on one film, every candidate offset scored negative.
+
+    *Modulation* finds dialogue under music by looking for syllable-rate wobble
+    rather than level, but smoothing costs it about a second of precision.
+
+    On clean audio loudness scores 0.996 against modulation's 0.69; on the
+    action film modulation scores 0.52 against loudness's -0.09.  So return
+    both and let the correlation decide, the same way frame rates are chosen.
+    """
+    db = _speech_envelope(path, res)
+    if db is None:
+        return []
+    import numpy as np
+
+    if float(np.percentile(db, 95) - np.percentile(db, 5)) < 3.0:
+        return []  # no contrast: silence, or a solid wall of noise
+
+    out = []
+    for label, feature in (
+        ("loudness", db),
+        ("speech modulation", _modulation(db, res)),
+    ):
+        mask = _threshold_mask(feature)
+        if mask is not None:
+            out.append((label, mask))
+    return out
 
 
 def _lag_scores(audio_mask, sub_mask):
@@ -634,8 +667,8 @@ def find_offset_by_timing(
     if best_score <= 0:
         return None
 
-    # Ignore lags within +/-1 s of the peak when looking for a rival.
-    guard = int(round(1.0 / MASK_RESOLUTION))
+    # Lags close to the winner belong to the same peak, so skip them.
+    guard = int(round(PEAK_GUARD / MASK_RESOLUTION))
     rivals = np.concatenate(
         (scores[: max(0, best_j - guard)], scores[best_j + guard + 1 :])
     )
@@ -646,13 +679,29 @@ def find_offset_by_timing(
     return correction, best_score, peak_ratio
 
 
+# Subtitles ripped from a PAL disc run 4% fast against a 23.976 fps video, and
+# no single shift can fix that — the error grows through the film.  Trying a
+# handful of standard conversions costs one extra correlation each.
+FRAME_RATE_SCALES = (
+    ("native", 1.0),
+    ("25 → 23.976 fps (PAL)", 25.0 / 23.976),
+    ("23.976 → 25 fps", 23.976 / 25.0),
+    ("25 → 24 fps", 25.0 / 24.0),
+    ("24 → 25 fps", 24.0 / 25.0),
+)
+
+
 def timing_alignment(
     video_path: str,
     entries: list[dict],
     max_shift: float,
+    try_scales: bool = True,
     verbose: bool = True,
-) -> Optional[tuple[float, float, float]]:
-    """Align on speech rhythm across the whole film. Returns (diff, score, ratio).
+) -> Optional[tuple[float, float, float, float, str]]:
+    """Align on speech rhythm across the whole film.
+
+    Returns (diff, score, peak_ratio, scale, scale_label); a subtitle timestamp
+    maps to video time as `t * scale - diff`.
 
     A five-minute sample is enough when the audio is clean, but a scored feature
     film needs the whole thing: the pauses that carry the signal are rarer and
@@ -668,7 +717,7 @@ def timing_alignment(
     hi = entries[-1]["end"] + max_shift + 30.0
     if total:
         hi = min(hi, total)
-        if total and entries[-1]["end"] < total * 0.6 and verbose:
+        if entries[-1]["end"] < total * 0.6 and verbose:
             print(
                 f"  note: subtitles cover {100 * entries[-1]['end'] / total:.0f}% "
                 f"of the runtime; aligning on that part only"
@@ -683,18 +732,44 @@ def timing_alignment(
         if verbose:
             print(f"Reading speech from {fmt_time(lo)} to {fmt_time(hi)} …")
         extract_audio(video_path, lo, span, path, rate=VAD_SAMPLE_RATE)
-        mask = speech_mask_from_audio(path)
-        if mask is None:
+        candidates = speech_mask_candidates(path)
+        if not candidates:
+            return None
+
+        scales = FRAME_RATE_SCALES if try_scales else FRAME_RATE_SCALES[:1]
+        scaled_cache = {}
+        best = None
+        for mask_label, mask in candidates:
+            seg_dur = len(mask) * MASK_RESOLUTION
+            for label, scale in scales:
+                if scale not in scaled_cache:
+                    scaled_cache[scale] = (
+                        entries
+                        if scale == 1.0
+                        else [
+                            {"start": e["start"] * scale, "end": e["end"] * scale}
+                            for e in entries
+                        ]
+                    )
+                found = find_offset_by_timing(
+                    mask, scaled_cache[scale], lo, seg_dur, max_shift
+                )
+                if found is None:
+                    continue
+                correction, score, ratio = found
+                if best is None or score > best[1]:
+                    best = (-correction, score, ratio, scale, label, mask_label, mask)
+
+        if best is None:
             return None
         if verbose:
-            print(f"  speech detected in {100 * mask.mean():.0f}% of it")
-        found = find_offset_by_timing(
-            mask, entries, lo, len(mask) * MASK_RESOLUTION, max_shift
-        )
-        if found is None:
-            return None
-        correction, score, ratio = found
-        return -correction, score, ratio
+            print(
+                f"  matched on {best[5]} "
+                f"({100 * best[6].mean():.0f}% of frames look like speech)"
+            )
+            if best[3] != 1.0:
+                print(f"  frame-rate conversion detected: {best[4]}")
+        return best[:5]
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -717,17 +792,26 @@ def refine_offset(
     correlation search around zero recovers the remaining error at frame
     resolution.  Returns (new_diff, score), or None if it isn't confident.
     """
-    mask = speech_mask_from_audio(audio_path)
-    if mask is None:
+    candidates = speech_mask_candidates(audio_path)
+    if not candidates:
         return None
-    seg_dur = min(seg_dur, len(mask) * MASK_RESOLUTION)
 
     correction = -diff
     shifted = [
         {"start": e["start"] + correction, "end": e["end"] + correction}
         for e in entries
     ]
-    found = find_offset_by_timing(mask, shifted, seg_start, seg_dur, window)
+    found = None
+    for _, mask in candidates:
+        got = find_offset_by_timing(
+            mask,
+            shifted,
+            seg_start,
+            min(seg_dur, len(mask) * MASK_RESOLUTION),
+            window,
+        )
+        if got is not None and (found is None or got[1] > found[1]):
+            found = got
     if found is None:
         return None
 
@@ -784,18 +868,14 @@ def fmt_time(s: float) -> str:
     return f"{sign}{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
 
 
-# Measured on a real film, the absolute correlation does not discriminate at all:
-# a subtitle track for the wrong cut scored 0.154 while three correctly-synced
-# tracks scored 0.039-0.082.  Only the peak-to-rival ratio separates them, so
-# --min-peak-ratio is the real control for timing alignment and this floor is
-# just a guard against a flat mask.
-TIMING_THRESHOLD = 0.02
+# With the modulation mask the correlation itself separates cleanly: across two
+# films, correct alignments scored 0.41-0.58 and wrong ones -0.02 to 0.13.
+TIMING_THRESHOLD = 0.25
 
 TIMING_HINT = (
     "The audio and the subtitles don't line up anywhere. Usually that means "
-    "they aren't the same cut of the film, or that the subtitles drift instead "
-    "of sitting at a constant offset (a 25 fps track against 23.976 fps video), "
-    "which no single shift can fix."
+    "they aren't the same cut of the film — a different release, or one disc "
+    "of a two-disc rip."
 )
 
 
@@ -812,15 +892,22 @@ def announce_offset(diff: float) -> None:
     print("=" * 58)
 
 
-def write_output(args, entries: list[dict], diff: float) -> None:
-    """Shift every timestamp by the detected offset and write the file."""
+def write_output(
+    args, entries: list[dict], diff: float, scale: float = 1.0
+) -> None:
+    """Map every timestamp onto video time and write the file.
+
+    A subtitle time `t` becomes `t * scale - diff`.  `scale` is 1.0 unless a
+    frame-rate conversion was detected, in which case stretching has to happen
+    before the shift or the two corrections fight each other.
+    """
     if not args.output:
         return
     correction = -diff
     shifted = [
         {
-            "start": e["start"] + correction,
-            "end": e["end"] + correction,
+            "start": e["start"] * scale + correction,
+            "end": e["end"] * scale + correction,
             "text": e["text"],
         }
         for e in entries
@@ -833,11 +920,11 @@ def report_timing(args, entries: list[dict], found) -> None:
     """Print a timing result and write the output, or explain the refusal."""
     if found is None:
         print(
-            f"\nCouldn't read speech from the audio. {TIMING_HINT}", file=sys.stderr
+            f"\nCouldn't find an alignment. {TIMING_HINT}", file=sys.stderr
         )
         sys.exit(1)
 
-    diff, score, peak_ratio = found
+    diff, score, peak_ratio, scale, scale_label = found
     threshold = args.threshold if args.threshold is not None else TIMING_THRESHOLD
 
     if score < threshold:
@@ -863,8 +950,16 @@ def report_timing(args, entries: list[dict], found) -> None:
     print(f"  Speech correlation:  {score:.3f}")
     print(f"  Peak / runner-up:    {peak_ratio:.2f}x")
     print(f"  Search window:       +/-{args.max_shift:g} s")
+    if scale != 1.0:
+        print(f"  Frame rate:          {scale_label}  (x{scale:.6f})")
     announce_offset(diff)
-    write_output(args, entries, diff)
+    if scale != 1.0:
+        print(
+            "  Note: these subtitles also run at the wrong speed. The output is "
+            "rescaled as well as shifted; the original could not have been "
+            "fixed by any single offset."
+        )
+    write_output(args, entries, diff, scale)
 
 
 def main():
@@ -932,10 +1027,15 @@ def main():
         help="Skip refining a text match against the waveform",
     )
     ap.add_argument(
+        "--no-rescale",
+        action="store_true",
+        help="Don't test for PAL/NTSC frame-rate conversions, only a shift",
+    )
+    ap.add_argument(
         "--min-peak-ratio",
         type=float,
-        default=1.25,
-        help="How far the best timing offset must beat the runner-up [default: 1.25]",
+        default=1.4,
+        help="How far the best timing offset must beat the runner-up [default: 1.4]",
     )
     args = ap.parse_args()
 
@@ -994,7 +1094,9 @@ def main():
             f"subtitles={sub_lang or 'n/a'}  →  timing alignment"
         )
         print("  (comparing speech rhythm, so no transcription is needed)")
-        found = timing_alignment(args.video, entries, args.max_shift)
+        found = timing_alignment(
+            args.video, entries, args.max_shift, try_scales=not args.no_rescale
+        )
         report_timing(args, entries, found)
         return
 
@@ -1050,6 +1152,22 @@ def main():
             f"Languages: audio={audio_lang or 'auto'} "
             f"subtitles={sub_lang or 'unknown'}  →  {strategy} alignment"
         )
+
+        # The probe may have just revealed a cross-language pair.  Timing reads
+        # the waveform, so there is nothing left to transcribe.
+        if strategy == "timing":
+            print("  (comparing speech rhythm, so no transcription is needed)")
+            report_timing(
+                args,
+                entries,
+                timing_alignment(
+                    args.video,
+                    entries,
+                    args.max_shift,
+                    try_scales=not args.no_rescale,
+                ),
+            )
+            return
 
         task = "translate" if strategy == "translate" else "transcribe"
         print(f"Transcribing with Whisper (task={task}) …")
@@ -1112,65 +1230,59 @@ def main():
             threshold = {"text": 0.2, "translate": 0.12, "timing": 0.15}[strategy]
 
         # 6. Find the offset
-        if strategy == "timing":
-            report_timing(
-                args, entries, timing_alignment(args.video, entries, args.max_shift)
-            )
-            return
-        else:
-            sim_fn = token_similarity if strategy == "translate" else text_similarity
-            match = find_best_match(result, entries, start_s, duration, sim_fn)
+        sim_fn = token_similarity if strategy == "translate" else text_similarity
+        match = find_best_match(result, entries, start_s, duration, sim_fn)
 
-            if match is None:
+        if match is None:
+            print(
+                "\nNo subtitle entries found within the transcribed region.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        sub_entry, wseg, sim = match
+
+        if sim < threshold:
+            print(
+                f"\nBest similarity ({sim:.3f}) below threshold ({threshold}).",
+                file=sys.stderr,
+            )
+            print(f"  Sub: [{fmt_time(sub_entry['start'])}]  {sub_entry['text']}")
+            print(f"  Wsp: [{wseg['start']:.2f}s]  {wseg['text'].strip()}")
+            if strategy == "text" and sub_lang != audio_lang:
                 print(
-                    "\nNo subtitle entries found within the transcribed region.",
+                    "  Different languages? Pass --audio-lang and --sub-lang.",
                     file=sys.stderr,
                 )
-                sys.exit(1)
+            sys.exit(1)
 
-            sub_entry, wseg, sim = match
+        video_time_of_whisper = start_s + wseg["start"]
+        diff = sub_entry["start"] - video_time_of_whisper
 
-            if sim < threshold:
-                print(
-                    f"\nBest similarity ({sim:.3f}) below threshold ({threshold}).",
-                    file=sys.stderr,
-                )
-                print(f"  Sub: [{fmt_time(sub_entry['start'])}]  {sub_entry['text']}")
-                print(f"  Wsp: [{wseg['start']:.2f}s]  {wseg['text'].strip()}")
-                if strategy == "text" and sub_lang != audio_lang:
-                    print(
-                        "  Different languages? Pass --audio-lang and --sub-lang.",
-                        file=sys.stderr,
-                    )
-                sys.exit(1)
+        refined = (
+            None if args.no_refine
+            else refine_offset(audio_path, entries, diff, start_s, duration)
+        )
 
-            video_time_of_whisper = start_s + wseg["start"]
-            diff = sub_entry["start"] - video_time_of_whisper
-
-            refined = (
-                None if args.no_refine
-                else refine_offset(audio_path, entries, diff, start_s, duration)
-            )
-
-            print()
-            print("=" * 58)
-            print(f"  Match similarity:  {sim:.3f}")
+        print()
+        print("=" * 58)
+        print(f"  Match similarity:  {sim:.3f}")
+        print(
+            f"  Subtitle line:     [{fmt_time(sub_entry['start'])} → {fmt_time(sub_entry['end'])}]"
+        )
+        print(f'                     "{sub_entry["text"]}"')
+        print(
+            f"  Whisper segment:   [{wseg['start']:.3f}s → {wseg['end']:.3f}s in extracted audio]"
+        )
+        print(f'                     "{wseg["text"].strip()}"')
+        print(f"  Whisper in video:  {fmt_time(video_time_of_whisper)}")
+        if refined is not None:
+            new_diff, rscore = refined
             print(
-                f"  Subtitle line:     [{fmt_time(sub_entry['start'])} → {fmt_time(sub_entry['end'])}]"
+                f"  Refined on waveform: {diff:+.3f} s → {new_diff:+.3f} s "
+                f"(correlation {rscore:.3f})"
             )
-            print(f'                     "{sub_entry["text"]}"')
-            print(
-                f"  Whisper segment:   [{wseg['start']:.3f}s → {wseg['end']:.3f}s in extracted audio]"
-            )
-            print(f'                     "{wseg["text"].strip()}"')
-            print(f"  Whisper in video:  {fmt_time(video_time_of_whisper)}")
-            if refined is not None:
-                new_diff, rscore = refined
-                print(
-                    f"  Refined on waveform: {diff:+.3f} s → {new_diff:+.3f} s "
-                    f"(correlation {rscore:.3f})"
-                )
-                diff = new_diff
+            diff = new_diff
 
         announce_offset(diff)
         write_output(args, entries, diff)
