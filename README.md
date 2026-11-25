@@ -309,4 +309,10 @@ When the subtitles aren't in the language being spoken, the middle steps change
 Your subtitle text is never rewritten, only re-timed.
 
 
+## Development note
+
+Much of suba's recent development — the cross-language alignment, the
+benchmark and the library mode — was done with the help of an AI coding
+agent, reviewed and released by the maintainer.
+
 **🌟 Star this repository if you find it helpful!**
