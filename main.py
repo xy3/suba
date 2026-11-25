@@ -10,16 +10,24 @@ import sys
 import tempfile
 import unicodedata
 import wave
-from typing import Optional
 from pathlib import Path
 
 try:
     import whisper
-except ImportError:
-    sys.exit(
-        "openai-whisper is not installed.\n"
-        "Install it first:  pip install openai-whisper"
-    )
+except ImportError:  # timing alignment works without it; load_whisper() explains
+    whisper = None
+
+
+def load_whisper(model_name: str):
+    """Load a Whisper model, or exit with install instructions."""
+    if whisper is None:
+        sys.exit(
+            "This alignment needs openai-whisper, which is not installed.\n"
+            "Install it:  pip install openai-whisper\n"
+            "(Or pass both -A and -S in different languages for timing mode,\n"
+            " which never transcribes.)"
+        )
+    return whisper.load_model(model_name)
 
 
 def ts_to_seconds(ts: str) -> float:
@@ -45,7 +53,7 @@ def strip_tags(text: str) -> str:
 
 def parse_subtitle(path: str) -> list[dict]:
     """Parse SRT or VTT file into [{'start': float, 'end': float, 'text': str}]."""
-    with open(path, "r", encoding="utf-8-sig") as f:
+    with open(path, encoding="utf-8-sig") as f:
         content = f.read()
 
     entries = []
@@ -111,7 +119,7 @@ def find_dialogue_region(entries: list[dict], duration: float) -> float:
     return best_start
 
 
-def media_duration(path: str) -> Optional[float]:
+def media_duration(path: str) -> float | None:
     """Length of a media file in seconds, or None if ffprobe can't say."""
     try:
         out = subprocess.run(
@@ -134,7 +142,7 @@ def media_duration(path: str) -> Optional[float]:
         return None
 
 
-def wav_duration(path: str) -> Optional[float]:
+def wav_duration(path: str) -> float | None:
     """Length of the WAV we extracted, which may be shorter than we asked for."""
     try:
         with wave.open(path) as w:
@@ -186,10 +194,38 @@ def extract_audio(
 
 # Tags subtitle sites append that are not languages.  'hi' is the trap: it means
 # hearing-impaired here, but it is also the code for Hindi.
+# Used only when Whisper (and its language table) is not installed.
+_FALLBACK_LANGS = {
+    alias: code
+    for code, aliases in {
+        "en": "en eng english",
+        "it": "it ita italian",
+        "es": "es spa spanish",
+        "fr": "fr fra fre french",
+        "de": "de deu ger german",
+        "pt": "pt por portuguese",
+        "nl": "nl nld dut dutch",
+        "sv": "sv swe swedish",
+        "da": "da dan danish",
+        "no": "no nor norwegian",
+        "fi": "fi fin finnish",
+        "ru": "ru rus russian",
+        "ja": "ja jpn japanese",
+        "zh": "zh zho chi chinese",
+        "ko": "ko kor korean",
+        "ar": "ar ara arabic",
+        "el": "el ell gre greek",
+        "he": "he heb hebrew",
+        "pl": "pl pol polish",
+        "tr": "tr tur turkish",
+    }.items()
+    for alias in aliases.split()
+}
+
 _NON_LANG_TAGS = {"hi", "sdh", "cc", "forced", "full", "srt", "vtt", "sub"}
 
 
-def normalize_lang(name: Optional[str]) -> Optional[str]:
+def normalize_lang(name: str | None) -> str | None:
     """Normalize a language name or code ('Italian', 'ita', 'IT') to 'it'.
 
     Returns None if the value is empty or Whisper doesn't recognise it.
@@ -199,8 +235,8 @@ def normalize_lang(name: Optional[str]) -> Optional[str]:
     key = name.strip().lower()
     try:
         from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
-    except ImportError:  # pragma: no cover — whisper always ships these
-        return key[:2]
+    except ImportError:
+        return _FALLBACK_LANGS.get(key)
 
     if key in LANGUAGES:  # already a code like 'it'
         return key
@@ -213,7 +249,7 @@ def normalize_lang(name: Optional[str]) -> Optional[str]:
     return None
 
 
-def lang_from_filename(path: str) -> Optional[str]:
+def lang_from_filename(path: str) -> str | None:
     """Guess a language from a subtitle filename such as 'movie.ita.srt'.
 
     Walks the dot/underscore-separated tags from the right so that names like
@@ -272,7 +308,7 @@ def _deaccent(text: str) -> str:
     return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
-def detect_subtitle_language(entries: list[dict]) -> Optional[str]:
+def detect_subtitle_language(entries: list[dict]) -> str | None:
     """Guess the subtitle language from its own text.
 
     This exists to stop the tool silently producing a confident, wrong offset:
@@ -297,8 +333,10 @@ def detect_subtitle_language(entries: list[dict]) -> Optional[str]:
         return None
 
     ranked = sorted(
-        ((sum(w in sw for w in words) / len(words), code)
-         for code, sw in _STOPWORDS.items()),
+        (
+            (sum(w in sw for w in words) / len(words), code)
+            for code, sw in _STOPWORDS.items()
+        ),
         reverse=True,
     )
     (best, code), (runner_up, _) = ranked[0], ranked[1]
@@ -311,20 +349,20 @@ def detect_subtitle_language(entries: list[dict]) -> Optional[str]:
     return code
 
 
-def detect_audio_language(model, audio_path: str) -> Optional[str]:
+def detect_audio_language(model, audio_path: str) -> str | None:
     """Ask Whisper which language the extracted audio is in (first 30 s)."""
     try:
         audio = whisper.pad_or_trim(whisper.load_audio(audio_path))
-        mel = whisper.log_mel_spectrogram(
-            audio, getattr(model.dims, "n_mels", 80)
-        ).to(model.device)
+        mel = whisper.log_mel_spectrogram(audio, getattr(model.dims, "n_mels", 80)).to(
+            model.device
+        )
         _, probs = model.detect_language(mel)
         return max(probs, key=probs.get)
     except Exception:
         return None
 
 
-def choose_strategy(audio_lang: Optional[str], sub_lang: Optional[str]) -> str:
+def choose_strategy(audio_lang: str | None, sub_lang: str | None) -> str:
     """Pick an alignment strategy from the two language codes.
 
     'text'      — same language, compare transcription to subtitle text
@@ -389,7 +427,7 @@ def find_best_match(
     seg_start: float,
     seg_dur: float,
     sim_fn=text_similarity,
-) -> Optional[tuple[dict, dict, float]]:
+) -> tuple[dict, dict, float] | None:
     """Return the (subtitle_entry, whisper_segment, similarity_score) or None.
 
     Only subtitle entries whose *start* falls within the extracted audio segment
@@ -624,7 +662,7 @@ def find_offset_by_timing(
     seg_start: float,
     seg_dur: float,
     max_shift: float,
-) -> Optional[tuple[float, float, float]]:
+) -> tuple[float, float, float] | None:
     """Align on speech rhythm alone. Returns (correction, score, peak_ratio).
 
     Words are useless across languages, but *when* people speak is the same in
@@ -697,7 +735,7 @@ def timing_alignment(
     max_shift: float,
     try_scales: bool = True,
     verbose: bool = True,
-) -> Optional[tuple[float, float, float, float, str]]:
+) -> tuple[float, float, float, float, str] | None:
     """Align on speech rhythm across the whole film.
 
     Returns (diff, score, peak_ratio, scale, scale_label); a subtitle timestamp
@@ -777,7 +815,7 @@ def refine_offset(
     seg_start: float,
     seg_dur: float,
     window: float = 6.0,
-) -> Optional[tuple[float, float]]:
+) -> tuple[float, float] | None:
     """Sharpen a text-derived offset against the waveform.
 
     Matching text tells us *which* subtitle line the audio is playing, but only
@@ -820,19 +858,19 @@ def refine_offset(
 
 def seconds_to_srt_ts(s: float) -> str:
     """Convert float seconds to SRT timestamp HH:MM:SS,mmm."""
-    s = max(0, s)
-    h, r = divmod(int(s), 3600)
+    total_ms = round(max(0.0, s) * 1000)
+    sec_total, ms = divmod(total_ms, 1000)
+    h, r = divmod(sec_total, 3600)
     m, sec = divmod(r, 60)
-    ms = int((s - int(s)) * 1000)
     return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
 
 
 def seconds_to_vtt_ts(s: float) -> str:
     """Convert float seconds to VTT timestamp HH:MM:SS.mmm."""
-    s = max(0, s)
-    h, r = divmod(int(s), 3600)
+    total_ms = round(max(0.0, s) * 1000)
+    sec_total, ms = divmod(total_ms, 1000)
+    h, r = divmod(sec_total, 3600)
     m, sec = divmod(r, 60)
-    ms = int((s - int(s)) * 1000)
     return f"{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
 
 
@@ -887,9 +925,7 @@ def announce_offset(diff: float) -> None:
     print("=" * 58)
 
 
-def write_output(
-    args, entries: list[dict], diff: float, scale: float = 1.0
-) -> None:
+def write_output(args, entries: list[dict], diff: float, scale: float = 1.0) -> None:
     """Map every timestamp onto video time and write the file.
 
     A subtitle time `t` becomes `t * scale - diff`.  `scale` is 1.0 unless a
@@ -914,9 +950,7 @@ def write_output(
 def report_timing(args, entries: list[dict], found) -> None:
     """Print a timing result and write the output, or explain the refusal."""
     if found is None:
-        print(
-            f"\nCouldn't find an alignment. {TIMING_HINT}", file=sys.stderr
-        )
+        print(f"\nCouldn't find an alignment. {TIMING_HINT}", file=sys.stderr)
         sys.exit(1)
 
     diff, score, peak_ratio, scale, scale_label = found
@@ -1097,7 +1131,8 @@ def main():
         # Timing alignment correlates speech patterns, and a 60 s window rarely
         # carries enough of them to beat a coincidental match.
         provisional = (
-            args.align if args.align != "auto"
+            args.align
+            if args.align != "auto"
             else choose_strategy(audio_lang, sub_lang)
         )
         duration = 300.0 if (provisional == "timing" or need_probe) else 60.0
@@ -1159,7 +1194,7 @@ def main():
         result: dict = {}
 
         print(f"Loading Whisper model ({args.model}) …")
-        model = whisper.load_model(args.model)
+        model = load_whisper(args.model)
 
         if need_probe:
             audio_lang = detect_audio_language(model, audio_path)
@@ -1206,8 +1241,7 @@ def main():
         print(f"Got {len(segments)} whisper segments\n")
         for seg in segments:
             print(
-                f"  [{seg['start']:7.2f}s – {seg['end']:7.2f}s]  "
-                f"{seg['text'].strip()}"
+                f"  [{seg['start']:7.2f}s – {seg['end']:7.2f}s]  {seg['text'].strip()}"
             )
 
         if not segments:
@@ -1226,9 +1260,7 @@ def main():
                 )
                 strategy = revised
                 if strategy == "timing":
-                    found = timing_alignment(
-                        args.video, entries, args.max_shift
-                    )
+                    found = timing_alignment(args.video, entries, args.max_shift)
                     report_timing(args, entries, found)
                     return
                 if strategy == "translate":
@@ -1283,7 +1315,8 @@ def main():
         diff = sub_entry["start"] - video_time_of_whisper
 
         refined = (
-            None if args.no_refine
+            None
+            if args.no_refine
             else refine_offset(audio_path, entries, diff, start_s, duration)
         )
 

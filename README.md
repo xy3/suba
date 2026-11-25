@@ -1,5 +1,7 @@
 # suba
 
+[![PyPI](https://img.shields.io/pypi/v/suba)](https://pypi.org/project/suba/) [![Tests](https://github.com/xy3/suba/actions/workflows/test.yml/badge.svg)](https://github.com/xy3/suba/actions/workflows/test.yml) [![License](https://img.shields.io/github/license/xy3/suba)](LICENSE)
+
 > Fix subtitle sync with Whisper, because `h` and `g` are for cowards.
 
 ---
