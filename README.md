@@ -10,7 +10,7 @@ You downloaded subtitles. The first line pops up during the studio logo. By the 
 
 Suba rips a minute of audio from a dialogue-heavy part of your video, transcribes it with Whisper, matches the transcription against the subtitle file, and tells you the offset. Then it writes out a corrected SRT so you can stop thinking about this.
 
-![suba fixing German subtitles that drift against an English film](docs/demo.gif)
+![suba fixing German subtitles that drift against an English film](https://raw.githubusercontent.com/xy3/suba/main/docs/demo.gif)
 
 ## Install
 
