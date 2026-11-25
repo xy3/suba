@@ -201,7 +201,7 @@ def cell(r):
     return f"{100 * s['within']:.0f}% · {med}"
 
 
-def write_markdown(results):
+def write_markdown(results, path=HERE / "results.md"):
     lines = [
         "| Case | Before | suba | ffsubsync |",
         "|------|--------|------|-----------|",
@@ -229,7 +229,7 @@ def write_markdown(results):
         "median error. Median run time: "
         f"suba {t['suba']:.0f} s, ffsubsync {t['ffsubsync']:.0f} s.",
     ]
-    (HERE / "results.md").write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 
 

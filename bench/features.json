@@ -1,0 +1,465 @@
+[
+  {
+    "case": "Charade, en +7.3 s",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000182,
+      "worst": 7.300000000000182,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.3990000000000009,
+        "worst": 0.39900000000034197,
+        "dropped": 0
+      },
+      "secs": 43.826361656188965,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.2899999999999636,
+        "worst": 0.2900000000008731,
+        "dropped": 0
+      },
+      "secs": 68.0842182636261,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, en PAL drift",
+    "before": {
+      "within": 0.0,
+      "median": 146.58999999999992,
+      "worst": 277.067,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.30500000000029104,
+        "worst": 0.30600000000049477,
+        "dropped": 0
+      },
+      "secs": 58.981934547424316,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.29200000000003,
+        "worst": 0.2930000000005748,
+        "dropped": 0
+      },
+      "secs": 68.54099321365356,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, en +95 s",
+    "before": {
+      "within": 0.0,
+      "median": 95.0,
+      "worst": 95.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.11300000000005639,
+        "worst": 0.11300000000028376,
+        "dropped": 0
+      },
+      "secs": 41.768269538879395,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 37.42100000000005,
+        "worst": 40.79399999999998,
+        "dropped": 0
+      },
+      "secs": 66.96834754943848,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, en +150 s",
+    "before": {
+      "within": 0.0,
+      "median": 150.0,
+      "worst": 150.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.2579999999998108,
+        "worst": 0.2580000000007203,
+        "dropped": 0
+      },
+      "secs": 31.56413698196411,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.004201680672268907,
+        "median": 67.26950000000011,
+        "worst": 177.8119999999999,
+        "dropped": 0
+      },
+      "secs": 69.19744300842285,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, es +7.3 s",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000182,
+      "worst": 7.300000000000182,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.1999999999998181,
+        "worst": 0.2000000000007276,
+        "dropped": 0
+      },
+      "secs": 66.63302969932556,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.25,
+        "worst": 0.25,
+        "dropped": 0
+      },
+      "secs": 67.93145108222961,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, es PAL drift",
+    "before": {
+      "within": 0.0,
+      "median": 143.48199999999997,
+      "worst": 277.04100000000017,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.19299999999998363,
+        "worst": 0.193000000000211,
+        "dropped": 0
+      },
+      "secs": 68.67240118980408,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.2520000000000664,
+        "worst": 0.2530000000006112,
+        "dropped": 0
+      },
+      "secs": 66.47758078575134,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, es +95 s",
+    "before": {
+      "within": 0.0,
+      "median": 95.0,
+      "worst": 95.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.1999999999998181,
+        "worst": 0.2000000000007276,
+        "dropped": 0
+      },
+      "secs": 65.94237923622131,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 36.636999999999716,
+        "worst": 40.081999999999994,
+        "dropped": 0
+      },
+      "secs": 66.13463830947876,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, es +150 s",
+    "before": {
+      "within": 0.0,
+      "median": 150.0,
+      "worst": 150.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.1999999999998181,
+        "worst": 0.2000000000007276,
+        "dropped": 0
+      },
+      "secs": 67.27885413169861,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.004881025015253203,
+        "median": 64.05799999999999,
+        "worst": 176.51400000000012,
+        "dropped": 0
+      },
+      "secs": 67.24345016479492,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, fr +7.3 s",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000182,
+      "worst": 7.300000000000182,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.40000000000009095,
+        "worst": 0.4000000000005457,
+        "dropped": 0
+      },
+      "secs": 64.15407919883728,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.09999999999990905,
+        "worst": 0.1000000000003638,
+        "dropped": 0
+      },
+      "secs": 65.8832106590271,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, fr PAL drift",
+    "before": {
+      "within": 0.0,
+      "median": 145.42100000000028,
+      "worst": 277.3269999999993,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.4070000000001528,
+        "worst": 0.4080000000003565,
+        "dropped": 0
+      },
+      "secs": 63.94680595397949,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.10799999999994725,
+        "worst": 0.10800000000017462,
+        "dropped": 0
+      },
+      "secs": 65.63278079032898,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, fr +95 s",
+    "before": {
+      "within": 0.0,
+      "median": 95.0,
+      "worst": 95.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.40000000000009095,
+        "worst": 0.4000000000005457,
+        "dropped": 0
+      },
+      "secs": 64.4904556274414,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 37.039999999999964,
+        "worst": 40.38300000000001,
+        "dropped": 0
+      },
+      "secs": 67.97603368759155,
+      "code": 0
+    }
+  },
+  {
+    "case": "Charade, fr +150 s",
+    "before": {
+      "within": 0.0,
+      "median": 150.0,
+      "worst": 150.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.3000000000001819,
+        "worst": 0.3000000000001819,
+        "dropped": 0
+      },
+      "secs": 65.46065402030945,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.005135730007336757,
+        "median": 66.69200000000001,
+        "worst": 178.45100000000002,
+        "dropped": 0
+      },
+      "secs": 73.73018550872803,
+      "code": 0
+    }
+  },
+  {
+    "case": "Sita, pt +7.3 s",
+    "before": {
+      "within": 0.0,
+      "median": 7.2999999999999545,
+      "worst": 7.300000000000182,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.2999999999999545,
+        "worst": 0.3000000000001819,
+        "dropped": 0
+      },
+      "secs": 47.884217977523804,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.03999999999996362,
+        "worst": 0.040000000000873115,
+        "dropped": 0
+      },
+      "secs": 42.183552742004395,
+      "code": 0
+    }
+  },
+  {
+    "case": "Sita, pt PAL drift",
+    "before": {
+      "within": 0.0,
+      "median": 77.85799999999995,
+      "worst": 190.6930000000002,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.25700000000006185,
+        "worst": 0.2580000000007203,
+        "dropped": 0
+      },
+      "secs": 43.637056827545166,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.04800000000000182,
+        "worst": 0.04800000000068394,
+        "dropped": 0
+      },
+      "secs": 43.79159116744995,
+      "code": 0
+    }
+  },
+  {
+    "case": "Sita, pt +95 s",
+    "before": {
+      "within": 0.0,
+      "median": 95.0,
+      "worst": 95.00000000000045,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.2999999999999545,
+        "worst": 0.3000000000001819,
+        "dropped": 0
+      },
+      "secs": 43.186498165130615,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.011644832605531296,
+        "median": 34.509000000000015,
+        "worst": 132.73999999999978,
+        "dropped": 0
+      },
+      "secs": 42.020402669906616,
+      "code": 0
+    }
+  },
+  {
+    "case": "Night of the Living Dead's subtitles on Charade, en",
+    "kind": "mismatch",
+    "suba": {
+      "wrote_file": false,
+      "secs": 60.356589794158936,
+      "code": 1
+    },
+    "ffsubsync": {
+      "wrote_file": true,
+      "secs": 67.48477864265442,
+      "code": 0
+    }
+  },
+  {
+    "case": "Night of the Living Dead's subtitles on Charade, as es",
+    "kind": "mismatch",
+    "suba": {
+      "wrote_file": false,
+      "secs": 59.4466507434845,
+      "code": 1
+    },
+    "ffsubsync": {
+      "wrote_file": true,
+      "secs": 67.16070222854614,
+      "code": 0
+    }
+  }
+]

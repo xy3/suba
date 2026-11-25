@@ -173,7 +173,7 @@ the true offset was -4.250 s. Pass `--no-refine` to turn it off.
 ## How it compares
 
 [ffsubsync](https://github.com/smacke/ffsubsync) is the established tool, and a
-good one. Both were run with default settings on
+good one. Both were run with default settings, first on
 [Tears of Steel](https://mango.blender.org/) and its official subtitle tracks,
 broken in known ways so the right answer is exact:
 
@@ -204,26 +204,62 @@ broken in known ways so the right answer is exact:
 
 Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 13 s, ffsubsync 7 s.
 
-Reading it honestly:
+### Two full-length films
 
-- **Ordinary shifts, other languages, PAL drift:** a tie. Both land within a
-  tenth of a second, below the precision of the official tracks themselves.
-  ffsubsync is about twice as fast.
+A 12-minute short proves little, so the same test was run on two features:
+[Charade](https://commons.wikimedia.org/wiki/File:Charade_(1963).webm)
+(1963, public domain), with volunteer subtitle tracks timed to that exact file,
+and [Sita Sings the Blues](https://archive.org/details/Sita_Sings_the_Blues)
+(2008, CC-BY-SA), an animated musical whose dialogue is largely 1920s jazz
+recordings, with its community Portuguese translation. On the untouched tracks
+both tools agreed with the stated timing to within 0.3 s.
+
+| Case | Before | suba | ffsubsync |
+|------|--------|------|-----------|
+| Charade, en +7.3 s | 0% · 7.30 s | 100% · 0.40 s | 100% · 0.29 s |
+| Charade, en PAL drift | 0% · 146.59 s | 100% · 0.31 s | 100% · 0.29 s |
+| Charade, en +95 s | 0% · 95.00 s | 100% · 0.11 s | 0% · 37.42 s |
+| Charade, en +150 s | 0% · 150.00 s | 100% · 0.26 s | 0% · 67.27 s |
+| Charade, es +7.3 s | 0% · 7.30 s | 100% · 0.20 s | 100% · 0.25 s |
+| Charade, es PAL drift | 0% · 143.48 s | 100% · 0.19 s | 100% · 0.25 s |
+| Charade, es +95 s | 0% · 95.00 s | 100% · 0.20 s | 0% · 36.64 s |
+| Charade, es +150 s | 0% · 150.00 s | 100% · 0.20 s | 0% · 64.06 s |
+| Charade, fr +7.3 s | 0% · 7.30 s | 100% · 0.40 s | 100% · 0.10 s |
+| Charade, fr PAL drift | 0% · 145.42 s | 100% · 0.41 s | 100% · 0.11 s |
+| Charade, fr +95 s | 0% · 95.00 s | 100% · 0.40 s | 0% · 37.04 s |
+| Charade, fr +150 s | 0% · 150.00 s | 100% · 0.30 s | 1% · 66.69 s |
+| Sita, pt +7.3 s | 0% · 7.30 s | 100% · 0.30 s | 100% · 0.04 s |
+| Sita, pt PAL drift | 0% · 77.86 s | 100% · 0.26 s | 100% · 0.05 s |
+| Sita, pt +95 s | 0% · 95.00 s | 100% · 0.30 s | 1% · 34.51 s |
+| Night of the Living Dead's subtitles on Charade, en | — | refused | **wrote a wrong file** |
+| Night of the Living Dead's subtitles on Charade, as es | — | refused | **wrote a wrong file** |
+
+Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 60 s, ffsubsync 67 s.
+
+Reading both tables honestly:
+
+- **Ordinary shifts, other languages, PAL drift:** a tie on accuracy — every
+  line lands within half a second either way. ffsubsync is the more precise of
+  the two (on Sita, 0.04 s against suba's 0.30 s median). On a short film it
+  is about twice as fast; on a feature the two take about a minute each.
 - **Offsets over a minute** — a different intro, a recap, a studio logo: suba
-  fixes them; ffsubsync makes the file worse. Raising its
+  fixed all eleven such cases across three films; ffsubsync left at most 1% of
+  lines right in each, usually further off than before. Raising its
   `--max-offset-seconds` to 300 didn't change that.
 - **Music louder than the dialogue:** both cope with a loud score. Louder
   still, ffsubsync's voice detection follows the music and lands 39 s out;
   suba's detector looks for the syllable rhythm of speech rather than
   loudness, and stays exact.
-- **Subtitles for a different video:** ffsubsync always writes a file. suba
-  refuses — which in a library run over hundreds of files is the difference
-  between a visible failure and silent damage.
+- **Subtitles for a different video**, including another feature's real
+  subtitles: ffsubsync always writes a file. suba refused all five — which in
+  a library run over hundreds of files is the difference between a visible
+  failure and silent damage.
 - **Half a subtitle file:** ffsubsync syncs the half it has. suba refuses by
   design, since the result dies mid-film; `--min-coverage 0` makes it align
   the half too.
 
-Reproduce it with `bench/fetch.sh && python bench/run.py`.
+Reproduce them with `bench/fetch.sh && python bench/run.py` and
+`bench/fetch_features.sh && python bench/features.py`.
 
 ## A whole library
 
