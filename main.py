@@ -425,7 +425,8 @@ def compress_ws(s: str) -> str:
 # distinctive ("No!" matches half the film) and actually reads the same.
 MIN_LINE_CHARS = 12
 LINE_MATCH = {"text": 0.6, "translate": 0.35}
-AGREE_TOLERANCE = 1.0  # s: Whisper segment starts are only this precise
+AGREE_TOLERANCE = 2.0  # s: Whisper segment starts wobble this much
+MIN_LEAD = 2.0  # the winning offset needs this many times the best rival's votes
 MIN_AGREEING = 3
 
 
@@ -482,15 +483,23 @@ def consensus_offset(matches, try_scales: bool = True):
     if not matches:
         return None
     scales = FRAME_RATE_SCALES if try_scales else FRAME_RATE_SCALES[:1]
-    best = None
+    best, rival = None, 0
     for label, scale in scales:
         diffs = sorted((st * scale - vt, m) for m in matches for st, vt in [m[:2]])
+        groups = []
         for i, (d0, _) in enumerate(diffs):
             group = [x for x in diffs[i:] if x[0] - d0 <= AGREE_TOLERANCE]
-            if best is None or len(group) > best[3]:
-                mid = group[len(group) // 2]
-                best = (mid[0], scale, label, len(group), len(matches), mid[1])
-    if best[3] < MIN_AGREEING or best[3] < len(matches) / 3:
+            mid = group[len(group) // 2]
+            groups.append((len(group), mid[0], mid[1]))
+        size, diff, example = max(groups, key=lambda g: g[0])
+        if best is None or size > best[3]:
+            # Votes for a clearly different offset, under this same scale.
+            rival = max(
+                (g[0] for g in groups if abs(g[1] - diff) > 2 * AGREE_TOLERANCE),
+                default=0,
+            )
+            best = (diff, scale, label, size, len(matches), example)
+    if best[3] < MIN_AGREEING or best[3] < MIN_LEAD * rival:
         return None
     return best
 
@@ -1161,8 +1170,8 @@ def main():
     ap.add_argument(
         "--max-shift",
         type=float,
-        default=60.0,
-        help="Largest offset to search for [default: 60 s]",
+        default=300.0,
+        help="Largest offset to search for [default: 300 s]",
     )
     ap.add_argument(
         "--no-refine",
@@ -1405,10 +1414,9 @@ def main():
             if not matches:
                 why = "none of the subtitle lines match what is said in the audio"
             else:
-                agree = (consensus_offset(matches, False) or [0] * 4)[3]
                 why = (
-                    f"{len(matches)} subtitle lines match the audio, but no offset "
-                    f"has enough of them agreeing (best: {agree})"
+                    f"{len(matches)} subtitle lines match the audio, but they "
+                    "don't clearly agree on one offset"
                 )
             print(
                 f"\nerror: {why}.\n"

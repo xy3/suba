@@ -48,7 +48,7 @@ suba <subtitles> <video> -o <output.srt|vtt>
 | `-A`, `--audio-lang` | Language spoken in the video (`en`, `english`, `eng`) |
 | `-S`, `--sub-lang` | Language of the subtitle file (`it`, `italian`, `ita`) |
 | `--align` | Force a strategy: `auto`, `text`, `translate`, `timing` |
-| `--max-shift` | Largest offset to search for in timing mode (default 60 s) |
+| `--max-shift` | Largest offset to search for in timing mode (default 300 s) |
 | `--min-peak-ratio` | How clearly the winning offset must beat the runner-up (default 1.4) |
 | `--no-refine` | Don't sharpen a text match against the waveform |
 | `--no-rescale` | Don't test for PAL/NTSC frame-rate conversions, only a shift |
@@ -173,9 +173,9 @@ the true offset was -4.250 s. Pass `--no-refine` to turn it off.
 ## How it compares
 
 [ffsubsync](https://github.com/smacke/ffsubsync) is the established tool, and a
-good one. On [Tears of Steel](https://mango.blender.org/) with its official
-subtitle tracks, deliberately broken in known ways, both tools fix every
-damaged track, ffsubsync a little more precisely and in half the time:
+good one. Both were run with default settings on
+[Tears of Steel](https://mango.blender.org/) and its official subtitle tracks,
+broken in known ways so the right answer is exact:
 
 | Case | Before | suba | ffsubsync |
 |------|--------|------|-----------|
@@ -186,21 +186,44 @@ damaged track, ffsubsync a little more precisely and in half the time:
 | fr +12.0 s | 0% · 12.00 s | 100% · 0.10 s | 100% · 0.06 s |
 | ru +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
 | ja +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
-| en PAL drift | 7% · 12.09 s | 100% · 0.11 s | 100% · 0.06 s |
+| en PAL drift | 7% · 12.09 s | 100% · 0.03 s | 100% · 0.06 s |
 | de PAL drift | 7% · 12.09 s | 100% · 0.09 s | 100% · 0.06 s |
 | es PAL drift +5 s | 3% · 8.09 s | 100% · 0.11 s | 100% · 0.06 s |
-| subtitles from another film | — | refused | wrote a file |
+| en +95 s | 0% · 95.00 s | 100% · 0.15 s | 0% · 139.41 s |
+| de +95 s | 0% · 95.00 s | 100% · 0.10 s | 0% · 139.41 s |
+| en +150 s | 0% · 150.00 s | 100% · 0.15 s | 0% · 179.32 s |
+| it +150 s | 0% · 150.00 s | 100% · 0.10 s | 0% · 179.43 s |
+| en +7.3 s, loud score | 0% · 7.30 s | 100% · 0.07 s | 100% · 0.08 s |
+| de +7.3 s, loud score | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.08 s |
+| en +7.3 s, louder score | 0% · 7.30 s | 100% · 0.07 s | 0% · 39.05 s |
+| de +7.3 s, louder score | 0% · 7.30 s | 100% · 0.10 s | 0% · 39.05 s |
+| Sintel's subtitles (another film), en | — | refused | **wrote a wrong file** |
+| Sintel's subtitles (another film), as de | — | refused | **wrote a wrong file** |
+| made-up dialogue track, en | — | refused | **wrote a wrong file** |
+| first 43% of the track (CD1), en +7.3 s | 0% · 7.30 s | refused | 100% · 0.09 s |
 
 Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 13 s, ffsubsync 7 s.
 
-The difference is the last row. Handed subtitles that belong to a different
-film, ffsubsync writes a confidently synced file anyway; suba says the lines
-don't agree and leaves your file alone. In a library run over hundreds of
-files, a refusal you can see beats damage you can't. suba also tells you *why*
-— which lines matched, whether the track drifts, how sure it is.
+Reading it honestly:
 
-Reproduce it with `bench/fetch.sh && python bench/run.py`. The broken tracks
-are generated from the official ones, so the right answer is known exactly.
+- **Ordinary shifts, other languages, PAL drift:** a tie. Both land within a
+  tenth of a second, below the precision of the official tracks themselves.
+  ffsubsync is about twice as fast.
+- **Offsets over a minute** — a different intro, a recap, a studio logo: suba
+  fixes them; ffsubsync makes the file worse. Raising its
+  `--max-offset-seconds` to 300 didn't change that.
+- **Music louder than the dialogue:** both cope with a loud score. Louder
+  still, ffsubsync's voice detection follows the music and lands 39 s out;
+  suba's detector looks for the syllable rhythm of speech rather than
+  loudness, and stays exact.
+- **Subtitles for a different video:** ffsubsync always writes a file. suba
+  refuses — which in a library run over hundreds of files is the difference
+  between a visible failure and silent damage.
+- **Half a subtitle file:** ffsubsync syncs the half it has. suba refuses by
+  design, since the result dies mid-film; `--min-coverage 0` makes it align
+  the half too.
+
+Reproduce it with `bench/fetch.sh && python bench/run.py`.
 
 ## A whole library
 

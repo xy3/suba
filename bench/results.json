@@ -4,24 +4,27 @@
     "before": {
       "within": 0.0,
       "median": 7.300000000000011,
-      "worst": 7.300000000000011
+      "worst": 7.300000000000011,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.05000000000001137,
-        "worst": 0.05000000000001137
+        "worst": 0.05000000000001137,
+        "dropped": 0
       },
-      "secs": 24.386960744857788,
+      "secs": 22.544357299804688,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 7.242587566375732,
+      "secs": 6.528759241104126,
       "code": 0
     }
   },
@@ -30,24 +33,27 @@
     "before": {
       "within": 0.0,
       "median": 4.100000000000023,
-      "worst": 4.100000000000023
+      "worst": 4.100000000000023,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.05000000000001137,
-        "worst": 0.05000000000001137
+        "worst": 0.05000000000001137,
+        "dropped": 0
       },
-      "secs": 30.443243503570557,
+      "secs": 21.893845796585083,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 6.838371753692627,
+      "secs": 6.515185594558716,
       "code": 0
     }
   },
@@ -56,24 +62,27 @@
     "before": {
       "within": 0.0,
       "median": 7.300000000000011,
-      "worst": 7.300000000000011
+      "worst": 7.300000000000011,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.10000000000002274,
-        "worst": 0.10000000000002274
+        "worst": 0.10000000000002274,
+        "dropped": 0
       },
-      "secs": 13.29716682434082,
+      "secs": 12.420855283737183,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 7.136460781097412,
+      "secs": 6.391801834106445,
       "code": 0
     }
   },
@@ -82,24 +91,27 @@
     "before": {
       "within": 0.0,
       "median": 4.100000000000023,
-      "worst": 4.100000000000023
+      "worst": 4.100000000000023,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.10000000000002274,
-        "worst": 0.10000000000002274
+        "worst": 0.10000000000002274,
+        "dropped": 0
       },
-      "secs": 13.1541428565979,
+      "secs": 12.707253694534302,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 6.938584327697754,
+      "secs": 6.450562953948975,
       "code": 0
     }
   },
@@ -108,24 +120,27 @@
     "before": {
       "within": 0.0,
       "median": 12.0,
-      "worst": 12.0
+      "worst": 12.0,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.10000000000002274,
-        "worst": 0.10000000000002274
+        "worst": 0.10000000000002274,
+        "dropped": 0
       },
-      "secs": 13.114984035491943,
+      "secs": 12.451569557189941,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 6.990609645843506,
+      "secs": 6.514955282211304,
       "code": 0
     }
   },
@@ -134,24 +149,27 @@
     "before": {
       "within": 0.0,
       "median": 7.300000000000011,
-      "worst": 7.300000000000011
+      "worst": 7.300000000000011,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.10000000000002274,
-        "worst": 0.10000000000002274
+        "worst": 0.10000000000002274,
+        "dropped": 0
       },
-      "secs": 12.93577241897583,
+      "secs": 12.37390661239624,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 6.999397277832031,
+      "secs": 6.481401681900024,
       "code": 0
     }
   },
@@ -160,24 +178,27 @@
     "before": {
       "within": 0.0,
       "median": 7.300000000000011,
-      "worst": 7.300000000000011
+      "worst": 7.300000000000011,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.10000000000002274,
-        "worst": 0.10000000000002274
+        "worst": 0.10000000000002274,
+        "dropped": 0
       },
-      "secs": 13.361087799072266,
+      "secs": 12.643079280853271,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.060000000000002274,
-        "worst": 0.060000000000002274
+        "worst": 0.060000000000002274,
+        "dropped": 0
       },
-      "secs": 6.845221042633057,
+      "secs": 6.465809345245361,
       "code": 0
     }
   },
@@ -186,24 +207,27 @@
     "before": {
       "within": 0.06578947368421052,
       "median": 12.086500000000001,
-      "worst": 22.182999999999993
+      "worst": 22.182999999999993,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
-        "median": 0.10950000000002547,
-        "worst": 0.29899999999997817
+        "median": 0.03200000000000003,
+        "worst": 0.03300000000001546,
+        "dropped": 0
       },
-      "secs": 18.836941480636597,
+      "secs": 17.533019065856934,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.06200000000001182,
-        "worst": 0.06300000000000239
+        "worst": 0.06300000000000239,
+        "dropped": 0
       },
-      "secs": 7.256763219833374,
+      "secs": 6.416185140609741,
       "code": 0
     }
   },
@@ -212,24 +236,27 @@
     "before": {
       "within": 0.06578947368421052,
       "median": 12.086500000000001,
-      "worst": 22.182999999999993
+      "worst": 22.182999999999993,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.09299999999998931,
-        "worst": 0.09300000000001774
+        "worst": 0.09300000000001774,
+        "dropped": 0
       },
-      "secs": 13.330448150634766,
+      "secs": 12.512207984924316,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.06200000000001182,
-        "worst": 0.06300000000000239
+        "worst": 0.06300000000000239,
+        "dropped": 0
       },
-      "secs": 6.96406102180481,
+      "secs": 6.3031089305877686,
       "code": 0
     }
   },
@@ -238,37 +265,325 @@
     "before": {
       "within": 0.02631578947368421,
       "median": 8.086500000000001,
-      "worst": 18.182999999999993
+      "worst": 18.182999999999993,
+      "dropped": 0
     },
     "suba": {
       "score": {
         "within": 1.0,
         "median": 0.1139999999999759,
-        "worst": 0.11400000000003274
+        "worst": 0.11400000000003274,
+        "dropped": 0
       },
-      "secs": 13.768298864364624,
+      "secs": 12.383013010025024,
       "code": 0
     },
     "ffsubsync": {
       "score": {
         "within": 1.0,
         "median": 0.06299999999998818,
-        "worst": 0.06400000000002137
+        "worst": 0.06400000000002137,
+        "dropped": 0
       },
-      "secs": 6.645848989486694,
+      "secs": 6.21795916557312,
       "code": 0
     }
   },
   {
-    "case": "subtitles from another film",
+    "case": "en +95 s",
+    "before": {
+      "within": 0.0,
+      "median": 95.0,
+      "worst": 95.0,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.14999999999997726,
+        "worst": 0.15000000000000568,
+        "dropped": 0
+      },
+      "secs": 34.54276132583618,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 139.4105,
+        "worst": 149.68100000000004,
+        "dropped": 0
+      },
+      "secs": 6.613390207290649,
+      "code": 0
+    }
+  },
+  {
+    "case": "de +95 s",
+    "before": {
+      "within": 0.0,
+      "median": 95.0,
+      "worst": 95.0,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.10000000000002274,
+        "worst": 0.10000000000002274,
+        "dropped": 0
+      },
+      "secs": 12.484789371490479,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 139.4105,
+        "worst": 149.68100000000004,
+        "dropped": 0
+      },
+      "secs": 6.865407466888428,
+      "code": 0
+    }
+  },
+  {
+    "case": "en +150 s",
+    "before": {
+      "within": 0.0,
+      "median": 150.0,
+      "worst": 150.0,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.14999999999997726,
+        "worst": 0.15000000000000568,
+        "dropped": 0
+      },
+      "secs": 25.518654346466064,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 179.3195,
+        "worst": 179.56600000000003,
+        "dropped": 0
+      },
+      "secs": 6.693652153015137,
+      "code": 0
+    }
+  },
+  {
+    "case": "it +150 s",
+    "before": {
+      "within": 0.0,
+      "median": 150.0,
+      "worst": 150.0,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.10000000000002274,
+        "worst": 0.10000000000002274,
+        "dropped": 0
+      },
+      "secs": 12.42469048500061,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 179.4295,
+        "worst": 179.67600000000004,
+        "dropped": 0
+      },
+      "secs": 6.537737131118774,
+      "code": 0
+    }
+  },
+  {
+    "case": "en +7.3 s, loud score",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000011,
+      "worst": 7.300000000000011,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.06999999999999318,
+        "worst": 0.07000000000005002,
+        "dropped": 0
+      },
+      "secs": 22.993632078170776,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.07999999999999119,
+        "worst": 0.08000000000004093,
+        "dropped": 0
+      },
+      "secs": 6.644767761230469,
+      "code": 0
+    }
+  },
+  {
+    "case": "de +7.3 s, loud score",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000011,
+      "worst": 7.300000000000011,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.10000000000002274,
+        "worst": 0.10000000000002274,
+        "dropped": 0
+      },
+      "secs": 13.183072566986084,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.07999999999999119,
+        "worst": 0.08000000000004093,
+        "dropped": 0
+      },
+      "secs": 6.748966455459595,
+      "code": 0
+    }
+  },
+  {
+    "case": "en +7.3 s, louder score",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000011,
+      "worst": 7.300000000000011,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.06999999999999318,
+        "worst": 0.07000000000005002,
+        "dropped": 0
+      },
+      "secs": 38.15245056152344,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 39.04849999999999,
+        "worst": Infinity,
+        "dropped": 2
+      },
+      "secs": 6.745619773864746,
+      "code": 0
+    }
+  },
+  {
+    "case": "de +7.3 s, louder score",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000011,
+      "worst": 7.300000000000011,
+      "dropped": 0
+    },
+    "suba": {
+      "score": {
+        "within": 1.0,
+        "median": 0.10000000000002274,
+        "worst": 0.10000000000002274,
+        "dropped": 0
+      },
+      "secs": 13.413006067276001,
+      "code": 0
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 0.0,
+        "median": 39.04849999999999,
+        "worst": Infinity,
+        "dropped": 2
+      },
+      "secs": 6.71202826499939,
+      "code": 0
+    }
+  },
+  {
+    "case": "Sintel's subtitles (another film), en",
+    "kind": "mismatch",
     "suba": {
       "wrote_file": false,
-      "secs": 21.610435009002686,
+      "secs": 19.409934520721436,
       "code": 1
     },
     "ffsubsync": {
       "wrote_file": true,
-      "secs": 7.037405967712402,
+      "secs": 6.5268614292144775,
+      "code": 0
+    }
+  },
+  {
+    "case": "Sintel's subtitles (another film), as de",
+    "kind": "mismatch",
+    "suba": {
+      "wrote_file": false,
+      "secs": 12.726365566253662,
+      "code": 1
+    },
+    "ffsubsync": {
+      "wrote_file": true,
+      "secs": 6.4926652908325195,
+      "code": 0
+    }
+  },
+  {
+    "case": "made-up dialogue track, en",
+    "kind": "mismatch",
+    "suba": {
+      "wrote_file": false,
+      "secs": 19.44892954826355,
+      "code": 1
+    },
+    "ffsubsync": {
+      "wrote_file": true,
+      "secs": 6.546534776687622,
+      "code": 0
+    }
+  },
+  {
+    "case": "first 43% of the track (CD1), en +7.3 s",
+    "before": {
+      "within": 0.0,
+      "median": 7.300000000000011,
+      "worst": 7.300000000000011,
+      "dropped": 0
+    },
+    "suba": {
+      "score": null,
+      "secs": 2.107208013534546,
+      "code": 1
+    },
+    "ffsubsync": {
+      "score": {
+        "within": 1.0,
+        "median": 0.08700000000000685,
+        "worst": 0.12299999999999045,
+        "dropped": 0
+      },
+      "secs": 6.321600437164307,
       "code": 0
     }
   }

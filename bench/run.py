@@ -42,6 +42,17 @@ CASES = [
     ("en PAL drift", "en", 1.0, PAL),
     ("de PAL drift", "de", 1.0, PAL),
     ("es PAL drift +5 s", "es", 5.0, PAL),
+    # A different intro or recap moves everything by minutes, not seconds.
+    ("en +95 s", "en", 95.0, 1.0),
+    ("de +95 s", "de", 95.0, 1.0),
+    ("en +150 s", "en", 150.0, 1.0),
+    ("it +150 s", "it", 150.0, 1.0),
+    # The film remixed with its own music-and-effects stem added on top, so
+    # the score drowns the dialogue (see fetch.sh).
+    ("en +7.3 s, loud score", "en", 7.3, 1.0, "tos_loud2.mkv"),
+    ("de +7.3 s, loud score", "de", 7.3, 1.0, "tos_loud2.mkv"),
+    ("en +7.3 s, louder score", "en", 7.3, 1.0, "tos_loud3.mkv"),
+    ("de +7.3 s, louder score", "de", 7.3, 1.0, "tos_loud3.mkv"),
 ]
 
 LANG_TAG = {"fr-orig": "fr", "JP": "ja", "CH": "zh"}
@@ -58,16 +69,26 @@ def broken_track(lang, shift, scale):
 
 
 def score(ref, out_path):
+    """How close each original line landed, or None if no file was written.
+
+    Lines are paired by their text, not their position: a tool may drop lines
+    (ffsubsync drops any it shifts before 0:00), and a dropped line counts as
+    a miss rather than silently shrinking the denominator.
+    """
     if not out_path.exists():
         return None
-    out = suba.parse_subtitle(str(out_path))
-    if len(out) != len(ref):
-        return None
-    errs = [abs(o["start"] - r["start"]) for o, r in zip(out, ref, strict=True)]
+    queues = {}
+    for o in suba.parse_subtitle(str(out_path)):
+        queues.setdefault(o["text"], []).append(o["start"])
+    errs = []
+    for r in ref:
+        q = queues.get(r["text"])
+        errs.append(abs(q.pop(0) - r["start"]) if q else float("inf"))
     return {
         "within": sum(e <= TOLERANCE for e in errs) / len(errs),
         "median": statistics.median(errs),
         "worst": max(errs),
+        "dropped": sum(e == float("inf") for e in errs),
     }
 
 
@@ -77,20 +98,20 @@ def run(cmd):
     return p.returncode, time.time() - t, p.stdout + p.stderr
 
 
-def tools(src, prefix):
+def tools(src, prefix, video=VIDEO):
     """Command for each tool; the output path is the argument after -o."""
     return {
         "suba": [
             sys.executable,
             str(ROOT / "main.py"),
             str(src),
-            str(VIDEO),
+            str(video),
             "-o",
             f"{prefix}.suba.srt",
         ],
         "ffsubsync": [
             "ffsubsync",
-            str(VIDEO),
+            str(video),
             "-i",
             str(src),
             "-o",
@@ -113,14 +134,15 @@ def wrong_film():
 def main():
     WORK.mkdir(parents=True, exist_ok=True)
     results = []
-    for case, lang, shift, scale in CASES:
+    for case, lang, shift, scale, *video in CASES:
+        video = MEDIA / video[0] if video else VIDEO
         ref, bad = broken_track(lang, shift, scale)
         tag = LANG_TAG.get(lang, lang)
-        src = WORK / f"{case.replace(' ', '_')}.{tag}.srt"
+        src = WORK / f"{case.replace(' ', '_').replace(',', '')}.{tag}.srt"
         suba.write_subtitle(str(src), bad)
         before = score(ref, src)
         row = {"case": case, "before": before}
-        for name, cmd in tools(src, WORK / src.stem).items():
+        for name, cmd in tools(src, WORK / src.stem, video).items():
             dst = Path(cmd[cmd.index("-o") + 1])
             dst.unlink(missing_ok=True)
             code, secs, log = run(cmd)
@@ -129,14 +151,40 @@ def main():
         results.append(row)
         print(json.dumps(row), flush=True)
 
-    src = WORK / "wrong_film.en.srt"
-    suba.write_subtitle(str(src), wrong_film())
-    row = {"case": "subtitles from another film"}
-    for name, cmd in tools(src, WORK / "wrong").items():
+    # Subtitles that don't belong to this video at all: the right answer is
+    # to write nothing.  Sintel is another Blender film (fetch.sh).
+    sintel = suba.parse_subtitle(str(MEDIA / "subs" / "sintel_en.srt"))
+    for label, stem, entries in [
+        ("Sintel's subtitles (another film), en", "sintel.en", sintel),
+        ("Sintel's subtitles (another film), as de", "sintel.de", sintel),
+        ("made-up dialogue track, en", "madeup.en", wrong_film()),
+    ]:
+        src = WORK / f"{stem}.srt"
+        suba.write_subtitle(str(src), entries)
+        row = {"case": label, "kind": "mismatch"}
+        for name, cmd in tools(src, WORK / stem).items():
+            dst = Path(cmd[cmd.index("-o") + 1])
+            dst.unlink(missing_ok=True)
+            code, secs, log = run(cmd)
+            row[name] = {"wrote_file": dst.exists(), "secs": secs, "code": code}
+            (WORK / f"{dst.name}.log").write_text(log)
+        results.append(row)
+        print(json.dumps(row), flush=True)
+
+    # One disc of a two-disc rip: the first 43% of the lines, shifted.  suba
+    # refuses by design (--min-coverage); ffsubsync syncs the half it has.
+    ref = suba.parse_subtitle(str(MEDIA / "subs" / "TOS-en.srt"))
+    ref = ref[: int(len(ref) * 0.43)]
+    src = WORK / "half.en.srt"
+    suba.write_subtitle(
+        str(src), [{**e, "start": e["start"] + 7.3, "end": e["end"] + 7.3} for e in ref]
+    )
+    row = {"case": "first 43% of the track (CD1), en +7.3 s", "before": score(ref, src)}
+    for name, cmd in tools(src, WORK / "half").items():
         dst = Path(cmd[cmd.index("-o") + 1])
         dst.unlink(missing_ok=True)
         code, secs, log = run(cmd)
-        row[name] = {"wrote_file": dst.exists(), "secs": secs, "code": code}
+        row[name] = {"score": score(ref, dst), "secs": secs, "code": code}
         (WORK / f"{dst.name}.log").write_text(log)
     results.append(row)
     print(json.dumps(row), flush=True)
@@ -148,8 +196,9 @@ def main():
 def cell(r):
     s = r["score"]
     if s is None:
-        return "failed" if r["code"] else "refused"
-    return f"{100 * s['within']:.0f}% · {s['median']:.2f} s"
+        return "refused"
+    med = "lines dropped" if s["median"] == float("inf") else f"{s['median']:.2f} s"
+    return f"{100 * s['within']:.0f}% · {med}"
 
 
 def write_markdown(results):
@@ -157,20 +206,21 @@ def write_markdown(results):
         "| Case | Before | suba | ffsubsync |",
         "|------|--------|------|-----------|",
     ]
-    for r in results[:-1]:
+    verdict = {True: "**wrote a wrong file**", False: "refused"}
+    for r in results:
+        if r.get("kind") == "mismatch":
+            lines.append(
+                f"| {r['case']} | — | {verdict[r['suba']['wrote_file']]} "
+                f"| {verdict[r['ffsubsync']['wrote_file']]} |"
+            )
+            continue
         b = r["before"]
         lines.append(
             f"| {r['case']} | {100 * b['within']:.0f}% · {b['median']:.2f} s "
             f"| {cell(r['suba'])} | {cell(r['ffsubsync'])} |"
         )
-    w = results[-1]
-    verdict = {True: "wrote a file", False: "refused"}
-    lines.append(
-        f"| {w['case']} | — | {verdict[w['suba']['wrote_file']]} "
-        f"| {verdict[w['ffsubsync']['wrote_file']]} |"
-    )
     t = {
-        n: statistics.median(r[n]["secs"] for r in results[:-1])
+        n: statistics.median(r[n]["secs"] for r in results)
         for n in ("suba", "ffsubsync")
     }
     lines += [
