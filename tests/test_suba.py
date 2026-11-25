@@ -160,3 +160,52 @@ def test_dialogue_region_picks_dense_part():
     entries = sorted(sparse + dense, key=lambda e: e["start"])
     start = main.find_dialogue_region(entries, 60.0)
     assert 240 <= start <= 300
+
+
+def test_find_pairs(tmp_path):
+    show = tmp_path / "Show"
+    show.mkdir()
+    for name in [
+        "Film (2016).mkv",
+        "Film (2016).en.srt",
+        "Film (2016).ita.forced.srt",
+        "Film (2016).en.srt.unsynced",
+        "Film (2016) Extended.mkv",
+        "Film (2016) Extended.srt",
+        "orphan.srt",
+    ]:
+        (tmp_path / name).write_text("")
+    (show / "S01E01.mp4").write_text("")
+    (show / "S01E01.vtt").write_text("")
+    pairs = {(s.name, v.name) for s, v in main.find_pairs(tmp_path)}
+    assert pairs == {
+        ("Film (2016).en.srt", "Film (2016).mkv"),
+        ("Film (2016).ita.forced.srt", "Film (2016).mkv"),
+        ("Film (2016) Extended.srt", "Film (2016) Extended.mkv"),
+        ("S01E01.vtt", "S01E01.mp4"),
+    }
+
+
+def _match(sub_t, video_t):
+    return (sub_t, video_t, 1.0, {"start": sub_t, "text": ""}, {"start": 0, "text": ""})
+
+
+def test_consensus_needs_agreement():
+    agree = [_match(t, t - 2.0) for t in (100, 130, 170, 220)]
+    stray = [_match(150, 40), _match(260, 300)]
+    diff, scale, _, n, total, _ = main.consensus_offset(agree + stray)
+    assert diff == pytest.approx(2.0) and scale == 1.0 and (n, total) == (4, 6)
+    assert (
+        main.consensus_offset([_match(100, 10), _match(150, 90), _match(200, 30)])
+        is None
+    )
+
+
+def test_consensus_detects_pal_drift():
+    pal = 23.976 / 25.0
+    # A PAL track: subtitle times run 4% fast against the video.
+    matches = [_match(t * pal + 1.0, t) for t in range(400, 700, 30)]
+    diff, scale, label, n, total, _ = main.consensus_offset(matches)
+    assert scale == pytest.approx(25.0 / 23.976) and "PAL" in label
+    assert n == total
+    assert main.consensus_offset(matches, try_scales=False) is None

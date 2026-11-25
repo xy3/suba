@@ -1,0 +1,29 @@
+suba tears_of_steel.de.srt tears_of_steel.mov -o fixed.de.srt
+Parsed 76 subtitle entries
+  (subtitles reach 74% of the runtime)
+Guessed subtitle language from filename: de
+Extracting audio @ 00:01:53.057 for 300.0 s
+Loading Whisper model (base) …
+##pause 1.2
+Detected audio language: en
+##pause 0.6
+Languages: audio=en subtitles=de  →  timing alignment
+  (comparing speech rhythm, so no transcription is needed)
+Reading speech from 00:00:00.000 to 00:10:34.775 …
+##pause 2.5
+  matched on speech modulation (40% of frames look like speech)
+  frame-rate conversion detected: 25 → 23.976 fps (PAL)
+
+==========================================================
+  Speech correlation:  0.435
+  Peak / runner-up:    2.58x
+  Search window:       +/-60 s
+  Frame rate:          25 → 23.976 fps (PAL)  (x1.042709)
+
+  SYNC OFFSET: +0.950 s   (+950 ms)
+  → Subtitles are 0.950s BEHIND audio
+==========================================================
+  Note: these subtitles also run at the wrong speed. The output is rescaled as
+  well as shifted; the original could not have been fixed by any single offset.
+
+Fixed subtitles written to: fixed.de.srt

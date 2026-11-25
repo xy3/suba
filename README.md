@@ -10,6 +10,8 @@ You downloaded subtitles. The first line pops up during the studio logo. By the 
 
 Suba rips a minute of audio from a dialogue-heavy part of your video, transcribes it with Whisper, matches the transcription against the subtitle file, and tells you the offset. Then it writes out a corrected SRT so you can stop thinking about this.
 
+![suba fixing German subtitles that drift against an English film](docs/demo.gif)
+
 ## Install
 
 You need `ffmpeg` and [`uv`](https://docs.astral.sh/uv/). Then:
@@ -168,13 +170,80 @@ Refined on waveform: -0.314 s → -4.264 s (correlation 0.988)
 That example is a real run against Italian audio with English subtitles, where
 the true offset was -4.250 s. Pass `--no-refine` to turn it off.
 
+## How it compares
+
+[ffsubsync](https://github.com/smacke/ffsubsync) is the established tool, and a
+good one. On [Tears of Steel](https://mango.blender.org/) with its official
+subtitle tracks, deliberately broken in known ways, both tools fix every
+damaged track, ffsubsync a little more precisely and in half the time:
+
+| Case | Before | suba | ffsubsync |
+|------|--------|------|-----------|
+| en +7.3 s | 0% · 7.30 s | 100% · 0.05 s | 100% · 0.06 s |
+| en -4.1 s | 0% · 4.10 s | 100% · 0.05 s | 100% · 0.06 s |
+| de +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
+| it -4.1 s | 0% · 4.10 s | 100% · 0.10 s | 100% · 0.06 s |
+| fr +12.0 s | 0% · 12.00 s | 100% · 0.10 s | 100% · 0.06 s |
+| ru +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
+| ja +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
+| en PAL drift | 7% · 12.09 s | 100% · 0.11 s | 100% · 0.06 s |
+| de PAL drift | 7% · 12.09 s | 100% · 0.09 s | 100% · 0.06 s |
+| es PAL drift +5 s | 3% · 8.09 s | 100% · 0.11 s | 100% · 0.06 s |
+| subtitles from another film | — | refused | wrote a file |
+
+Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 13 s, ffsubsync 7 s.
+
+The difference is the last row. Handed subtitles that belong to a different
+film, ffsubsync writes a confidently synced file anyway; suba says the lines
+don't agree and leaves your file alone. In a library run over hundreds of
+files, a refusal you can see beats damage you can't. suba also tells you *why*
+— which lines matched, whether the track drifts, how sure it is.
+
+Reproduce it with `bench/fetch.sh && python bench/run.py`. The broken tracks
+are generated from the official ones, so the right answer is known exactly.
+
+## A whole library
+
+```bash
+suba batch /media/movies
+```
+
+Finds every subtitle file sitting next to its video (`Film (2016).en.srt` beside
+`Film (2016).mkv`, the way Jellyfin, Plex and Kodi name them), syncs each one in
+place, and keeps the original as `Film (2016).en.srt.unsynced`. Files that
+already have a backup are skipped, so running it again — from cron, say — only
+touches what's new. A file suba isn't sure about is left exactly as it was.
+`--dry-run` lists the pairs; any other flag is passed through to suba.
+
+## Docker
+
+```bash
+docker run --rm -v /media/movies:/media -v suba-cache:/cache \
+  ghcr.io/xy3/suba batch /media
+```
+
+ffmpeg, Whisper and a CPU-only PyTorch are inside. The cache volume keeps
+Whisper's model between runs.
+
+## Bazarr
+
+Bazarr can run suba on every subtitle it downloads. In *Settings → Subtitles →
+Custom Post-Processing*, set the command to:
+
+```
+suba "{{subtitles}}" "{{episode}}" -A {{episode_language_code2}} -S {{subtitles_language_code2}} -o "{{subtitles}}"
+```
+
+Turn off Bazarr's own sync (it runs ffsubsync first) so suba starts from the
+downloaded file. When suba refuses, the subtitle is left untouched.
+
 ## How it works
 
 - Finds the densest 60 seconds of subtitles (more lines = more talking, probably)
 - Extracts that audio with ffmpeg
 - Transcribes it with Whisper
-- Slides windows of the transcription over each candidate subtitle line, scoring by text similarity and timestamp proximity
-- Shifts all timestamps by the detected offset and writes a fixed SRT
+- Matches every distinctive subtitle line against what Whisper heard, and only trusts an offset that at least three lines agree on — under a plain shift or a PAL/NTSC speed conversion
+- Sharpens that offset against the waveform, then shifts (and if needed rescales) every timestamp and writes a fixed SRT
 
 When the subtitles aren't in the language being spoken, the middle steps change
 — see [Different languages](#different-languages) — but the last one doesn't.

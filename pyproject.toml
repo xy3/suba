@@ -1,6 +1,6 @@
 [project]
 name = "suba"
-version = "0.2.0"
+version = "0.3.0"
 description = "Fix out-of-sync subtitles automatically: Whisper text matching, cross-language speech-timing alignment, and PAL/NTSC drift correction"
 readme = "README.md"
 license = "Apache-2.0"

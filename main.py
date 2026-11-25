@@ -421,63 +421,77 @@ def compress_ws(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def find_best_match(
+# A pair of lines only counts as evidence when it is long enough to be
+# distinctive ("No!" matches half the film) and actually reads the same.
+MIN_LINE_CHARS = 12
+LINE_MATCH = {"text": 0.6, "translate": 0.35}
+AGREE_TOLERANCE = 1.0  # s: Whisper segment starts are only this precise
+MIN_AGREEING = 3
+
+
+def line_matches(
     transcription: dict,
     entries: list[dict],
     seg_start: float,
     seg_dur: float,
+    max_shift: float,
     sim_fn=text_similarity,
-) -> tuple[dict, dict, float] | None:
-    """Return the (subtitle_entry, whisper_segment, similarity_score) or None.
+    min_sim: float = 0.6,
+) -> list[tuple[float, float, float, dict, dict]]:
+    """Every subtitle line that clearly matches something Whisper heard.
 
-    Only subtitle entries whose *start* falls within the extracted audio segment
-    are candidates.  The algorithm tries matching against 1-, 2-, and 3-segment
-    windows of the Whisper output and weights results by temporal proximity.
+    Returns (subtitle_time, video_time, similarity, entry, segment) per line,
+    with no assumption about where in the window the line should be: the whole
+    point is to find out.
     """
-    seg_end = seg_start + seg_dur
-    candidates = [e for e in entries if seg_start <= e["start"] < seg_end]
-    if not candidates:
-        return None
+    segments = [s for s in transcription.get("segments", []) if s["text"].strip()]
+    combos = []
+    for i in range(len(segments)):
+        for win in (1, 2, 3):
+            if i + win <= len(segments):
+                text = compress_ws(
+                    " ".join(s["text"].strip() for s in segments[i : i + win])
+                )
+                combos.append((segments[i], text))
 
-    segments = transcription.get("segments", [])
-    if not segments:
-        return None
-
-    best = None  # (sub_entry, whisper_seg, text_similarity)
-    best_score = 0.0
-
-    for sub in candidates:
-        sub_text = compress_ws(sub["text"])
-        if not sub_text:
+    lo, hi = seg_start - max_shift, seg_start + seg_dur + max_shift
+    out = []
+    for e in entries:
+        text = compress_ws(e["text"])
+        if not (lo <= e["start"] < hi) or len(re.sub(r"\W", "", text)) < MIN_LINE_CHARS:
             continue
-        expected_pos = (
-            sub["start"] - seg_start
-        )  # where in the audio the line should appear
+        best = max(
+            ((sim_fn(text, c), seg) for seg, c in combos),
+            default=None,
+            key=lambda x: x[0],
+        )
+        if best and best[0] >= min_sim:
+            out.append((e["start"], seg_start + best[1]["start"], best[0], e, best[1]))
+    return out
 
-        for i in range(len(segments)):
-            for win in (1, 2, 3):
-                if i + win > len(segments):
-                    break
-                combo = " ".join(s["text"].strip() for s in segments[i : i + win])
-                combo = compress_ws(combo)
-                if not combo:
-                    continue
 
-                text_score = sim_fn(sub_text, combo)
-                if text_score == 0:
-                    continue
+def consensus_offset(matches, try_scales: bool = True):
+    """Find the (diff, scale) most matched lines agree on, or None.
 
-                # Temporal weight: closer whisper position → higher weight
-                wseg_pos = segments[i]["start"]
-                time_diff = abs(wseg_pos - expected_pos)
-                max_diff = seg_dur * 0.5
-                temporal_weight = max(0.0, 1.0 - time_diff / max_diff)
-
-                combined = text_score * 0.7 + temporal_weight * 0.3
-                if combined > best_score:
-                    best_score = combined
-                    best = (sub, segments[i], text_score)
-
+    One matching line proves nothing: unrelated sentences can look alike, and a
+    single pair can't reveal a subtitle track running at the wrong speed.  Each
+    candidate frame-rate conversion predicts its own offset per line; the one
+    under which the most lines agree wins.  Returns
+    (diff, scale, label, agreeing, total, example_match).
+    """
+    if not matches:
+        return None
+    scales = FRAME_RATE_SCALES if try_scales else FRAME_RATE_SCALES[:1]
+    best = None
+    for label, scale in scales:
+        diffs = sorted((st * scale - vt, m) for m in matches for st, vt in [m[:2]])
+        for i, (d0, _) in enumerate(diffs):
+            group = [x for x in diffs[i:] if x[0] - d0 <= AGREE_TOLERANCE]
+            if best is None or len(group) > best[3]:
+                mid = group[len(group) // 2]
+                best = (mid[0], scale, label, len(group), len(matches), mid[1])
+    if best[3] < MIN_AGREEING or best[3] < len(matches) / 3:
+        return None
     return best
 
 
@@ -915,7 +929,7 @@ TIMING_HINT = (
 def announce_offset(diff: float) -> None:
     """Print the headline offset the same way for every strategy."""
     print()
-    print(f"  SYNC OFFSET: {diff:+.3f} s   ({int(diff * 1000):+d} ms)")
+    print(f"  SYNC OFFSET: {diff:+.3f} s   ({round(diff * 1000):+d} ms)")
     if diff > 0:
         print(f"  → Subtitles are {diff:.3f}s BEHIND audio")
     elif diff < 0:
@@ -991,9 +1005,109 @@ def report_timing(args, entries: list[dict], found) -> None:
     write_output(args, entries, diff, scale)
 
 
-def main():
+VIDEO_EXTS = {".mkv", ".mp4", ".avi", ".mov", ".m4v", ".webm", ".ts", ".wmv"}
+SUB_EXTS = {".srt", ".vtt"}
+BACKUP_SUFFIX = ".unsynced"
+
+
+def find_pairs(root: Path) -> list[tuple[Path, Path]]:
+    """Pair every subtitle under root with the video whose name it starts with.
+
+    Media servers name subtitles after their video ('Film (2016).en.srt' next to
+    'Film (2016).mkv'), so the longest video stem that prefixes the subtitle's
+    name wins.  Backups left by an earlier run are never treated as subtitles.
+    """
+    pairs = []
+    for folder in sorted({p.parent for p in root.rglob("*") if p.is_file()}):
+        files = sorted(p for p in folder.iterdir() if p.is_file())
+        videos = [p for p in files if p.suffix.lower() in VIDEO_EXTS]
+        for sub in files:
+            if sub.suffix.lower() not in SUB_EXTS:
+                continue
+            owners = [
+                v
+                for v in videos
+                if sub.name == v.stem + sub.suffix or sub.name.startswith(v.stem + ".")
+            ]
+            if owners:
+                pairs.append((sub, max(owners, key=lambda v: len(v.stem))))
+    return pairs
+
+
+def batch(argv: list[str]) -> int:
+    """`suba batch DIR [suba options]`: fix every subtitle in a library, in place.
+
+    Each original is kept as '<name>.unsynced' and a subtitle that already has
+    a backup is skipped, so re-running over a library only touches new files.
+    Every pair runs in its own process: one bad file can't stop the rest.
+    """
     ap = argparse.ArgumentParser(
-        description="subsync — detect subtitle sync offset using Whisper"
+        prog="suba batch",
+        description="Sync every subtitle in a folder (recursively) to the video "
+        "it belongs to, in place. Originals are kept as *.unsynced. Any other "
+        "option is passed through to suba.",
+    )
+    ap.add_argument("folder")
+    ap.add_argument("--dry-run", action="store_true", help="List pairs and stop")
+    ap.add_argument(
+        "--redo", action="store_true", help="Re-sync files that already have a backup"
+    )
+    args, passthrough = ap.parse_known_args(argv)
+
+    root = Path(args.folder)
+    if not root.is_dir():
+        print(f"error: {root} is not a folder", file=sys.stderr)
+        return 1
+    pairs = find_pairs(root)
+    if not pairs:
+        print("No subtitle/video pairs found.")
+        return 0
+
+    fixed = skipped = failed = 0
+    for sub, video in pairs:
+        backup = sub.with_name(sub.name + BACKUP_SUFFIX)
+        if backup.exists() and not args.redo:
+            skipped += 1
+            continue
+        print(f"\n=== {sub.relative_to(root)}  ←→  {video.name}", flush=True)
+        if args.dry_run:
+            continue
+        source = backup if backup.exists() else sub
+        tmp = sub.with_name(sub.name + ".suba-tmp" + sub.suffix)
+        code = subprocess.call(
+            [
+                sys.executable,
+                os.path.abspath(__file__),
+                str(source),
+                str(video),
+                "-o",
+                str(tmp),
+                *passthrough,
+            ]
+        )
+        if code == 0 and tmp.exists():
+            if source is sub:
+                sub.rename(backup)
+            tmp.replace(sub)
+            fixed += 1
+        else:
+            tmp.unlink(missing_ok=True)
+            failed += 1
+            print(f"    left unchanged: {sub.name}", flush=True)
+
+    print(
+        f"\n{len(pairs)} subtitle files: {fixed} synced, {failed} left unchanged, "
+        f"{skipped} already done."
+    )
+    return 1 if failed and not fixed else 0
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "batch":
+        sys.exit(batch(sys.argv[2:]))
+    ap = argparse.ArgumentParser(
+        description="suba — fix out-of-sync subtitles",
+        epilog="To fix a whole library in place: suba batch FOLDER [options]",
     )
     ap.add_argument("subtitle", help="Path to SRT or VTT subtitle file")
     ap.add_argument("video", help="Path to video file")
@@ -1280,58 +1394,58 @@ def main():
                         )
                         sys.exit(1)
 
-        threshold = args.threshold
-        if threshold is None:
-            threshold = {"text": 0.2, "translate": 0.12, "timing": 0.15}[strategy]
-
-        # 6. Find the offset
+        # 6. Find the offset: many lines have to agree, not just one.
         sim_fn = token_similarity if strategy == "translate" else text_similarity
-        match = find_best_match(result, entries, start_s, duration, sim_fn)
-
-        if match is None:
-            print(
-                "\nNo subtitle entries found within the transcribed region.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        sub_entry, wseg, sim = match
-
-        if sim < threshold:
-            print(
-                f"\nBest similarity ({sim:.3f}) below threshold ({threshold}).",
-                file=sys.stderr,
-            )
-            print(f"  Sub: [{fmt_time(sub_entry['start'])}]  {sub_entry['text']}")
-            print(f"  Wsp: [{wseg['start']:.2f}s]  {wseg['text'].strip()}")
-            if strategy == "text" and sub_lang != audio_lang:
-                print(
-                    "  Different languages? Pass --audio-lang and --sub-lang.",
-                    file=sys.stderr,
+        min_sim = args.threshold if args.threshold is not None else LINE_MATCH[strategy]
+        matches = line_matches(
+            result, entries, start_s, duration, args.max_shift, sim_fn, min_sim
+        )
+        found = consensus_offset(matches, try_scales=not args.no_rescale)
+        if found is None:
+            if not matches:
+                why = "none of the subtitle lines match what is said in the audio"
+            else:
+                agree = (consensus_offset(matches, False) or [0] * 4)[3]
+                why = (
+                    f"{len(matches)} subtitle lines match the audio, but no offset "
+                    f"has enough of them agreeing (best: {agree})"
                 )
+            print(
+                f"\nerror: {why}.\n"
+                "       These subtitles may belong to a different cut or film; "
+                "nothing was written."
+                + (
+                    "\n       Different languages? Pass --audio-lang and --sub-lang."
+                    if strategy == "text"
+                    else ""
+                ),
+                file=sys.stderr,
+            )
             sys.exit(1)
 
-        video_time_of_whisper = start_s + wseg["start"]
-        diff = sub_entry["start"] - video_time_of_whisper
+        diff, scale, scale_label, n_agree, n_total, example = found
+        sub_entry, wseg = example[3], example[4]
+        scaled = [
+            {**e, "start": e["start"] * scale, "end": e["end"] * scale} for e in entries
+        ]
 
         refined = (
             None
             if args.no_refine
-            else refine_offset(audio_path, entries, diff, start_s, duration)
+            else refine_offset(audio_path, scaled, diff, start_s, duration)
         )
 
         print()
         print("=" * 58)
-        print(f"  Match similarity:  {sim:.3f}")
+        print(f"  Lines in agreement: {n_agree} of {n_total} matched")
+        if scale != 1.0:
+            print(f"  frame-rate conversion detected: {scale_label}")
         print(
-            f"  Subtitle line:     [{fmt_time(sub_entry['start'])} → {fmt_time(sub_entry['end'])}]"
+            f'  e.g. subtitle  [{fmt_time(sub_entry["start"])}]  "{compress_ws(sub_entry["text"])}"'
         )
-        print(f'                     "{sub_entry["text"]}"')
         print(
-            f"  Whisper segment:   [{wseg['start']:.3f}s → {wseg['end']:.3f}s in extracted audio]"
+            f'       heard at  [{fmt_time(start_s + wseg["start"])}]  "{wseg["text"].strip()}"'
         )
-        print(f'                     "{wseg["text"].strip()}"')
-        print(f"  Whisper in video:  {fmt_time(video_time_of_whisper)}")
         if refined is not None:
             new_diff, rscore = refined
             print(
@@ -1341,7 +1455,7 @@ def main():
             diff = new_diff
 
         announce_offset(diff)
-        write_output(args, entries, diff)
+        write_output(args, entries, diff, scale)
 
     finally:
         if os.path.exists(audio_path):
