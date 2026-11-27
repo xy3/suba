@@ -28,6 +28,10 @@ pip install suba openai-whisper
 
 That's it. One command — no clone, no build step.
 
+Whisper is optional. Without it (`pip install suba`, no PyTorch), suba aligns
+every subtitle on speech timing alone; with it, same-language subtitles also
+get checked word by word.
+
 ## Use
 
 ```bash
@@ -302,6 +306,27 @@ suba "{{subtitles}}" "{{episode}}" -A {{episode_language_code2}} -S {{subtitles_
 
 Turn off Bazarr's own sync (it runs ffsubsync first) so suba starts from the
 downloaded file. When suba refuses, the subtitle is left untouched.
+
+### Bazarr in Docker
+
+Bazarr's container doesn't include suba, but it's a one-line addition. The
+[linuxserver.io image](https://docs.linuxserver.io/images/docker-bazarr/)
+already has everything suba needs (Python, numpy, ffmpeg and the voice
+detector, since ffsubsync uses them too), so add to its `environment:`
+
+```yaml
+- DOCKER_MODS=linuxserver/mods:universal-package-install
+- INSTALL_PIP_PACKAGES=suba
+```
+
+and restart. suba is installed at every start, and the post-processing command
+above works as-is.
+
+Inside the container, suba runs without Whisper: it aligns on speech timing,
+which needs no transcription. On the benchmark that gives the same results —
+every same-language case fixed at the same precision, every wrong-film
+subtitle refused. Whisper adds a second check on the words; it needs PyTorch,
+which is too heavy for that image.
 
 ## How it works
 

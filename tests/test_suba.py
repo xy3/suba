@@ -229,3 +229,13 @@ def test_snap_to_voice_sharpens_a_rough_offset():
     assert snapped is not None and abs(snapped[0] - -7.3) < 0.015
     # With nothing to hear, the rough answer stands.
     assert main.snap_to_voice(np.zeros_like(voice), 0.0, entries, -7.0) is None
+
+
+def test_without_whisper_auto_falls_back_to_timing():
+    assert main.early_strategy("auto", "en", "en", have_whisper=False) == "timing"
+    assert main.early_strategy("auto", None, None, have_whisper=False) == "timing"
+    assert main.early_strategy("auto", "en", "en", have_whisper=True) == "text"
+    assert main.early_strategy("auto", None, "en", have_whisper=True) is None
+    assert main.early_strategy("auto", "en", "it", have_whisper=True) == "timing"
+    # Asked for text explicitly: still needs Whisper, so no silent switch.
+    assert main.early_strategy("text", "en", "en", have_whisper=False) is None

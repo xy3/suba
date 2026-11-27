@@ -30,8 +30,7 @@ def load_whisper(model_name: str):
         sys.exit(
             "This alignment needs openai-whisper, which is not installed.\n"
             "Install it:  pip install openai-whisper\n"
-            "(Or pass both -A and -S in different languages for timing mode,\n"
-            " which never transcribes.)"
+            "(Or drop --align, or use --align timing: it never transcribes.)"
         )
     return whisper.load_model(model_name)
 
@@ -369,6 +368,28 @@ def detect_audio_language(model, audio_path: str) -> str | None:
         return max(probs, key=probs.get)
     except Exception:
         return None
+
+
+def early_strategy(
+    align: str, audio_lang: str | None, sub_lang: str | None, have_whisper: bool
+) -> str | None:
+    """The strategy if it can be settled before any transcription, else None.
+
+    Without Whisper there is nothing to transcribe, but timing alignment needs
+    no words at all, so `auto` falls back to it instead of stopping.  On the
+    benchmark it fixed every case timing was tried on, and it refuses
+    another film's subtitles just the same.  An explicit `--align text`
+    still asks for Whisper.
+    """
+    if align == "timing":
+        return "timing"
+    if align != "auto":
+        return None
+    if not have_whisper:
+        return "timing"
+    if audio_lang and sub_lang:
+        return choose_strategy(audio_lang, sub_lang)
+    return None
 
 
 def choose_strategy(audio_lang: str | None, sub_lang: str | None) -> str:
@@ -1412,12 +1433,12 @@ def main():
 
     # 3. Timing alignment reads the whole film off the waveform, so it needs
     # neither a sample window nor Whisper.  Settle it here and skip both.
-    if args.align == "timing":
-        early = "timing"
-    elif args.align == "auto" and audio_lang and sub_lang:
-        early = choose_strategy(audio_lang, sub_lang)
-    else:
-        early = None
+    early = early_strategy(args.align, audio_lang, sub_lang, whisper is not None)
+    if early == "timing" and whisper is None and args.align == "auto":
+        print(
+            "openai-whisper is not installed, so aligning on speech timing.\n"
+            "  (pip install openai-whisper adds a second check on the words.)"
+        )
 
     if early == "timing":
         print(
