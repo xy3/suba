@@ -1,11 +1,11 @@
 [project]
 name = "suba"
-version = "0.3.1"
+version = "0.4.0"
 description = "Fix out-of-sync subtitles automatically: Whisper text matching, cross-language speech-timing alignment, and PAL/NTSC drift correction"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
-dependencies = ["numpy"]
+dependencies = ["numpy", "webrtcvad-wheels"]
 keywords = ["subtitles", "srt", "vtt", "sync", "whisper", "ffmpeg", "alignment"]
 classifiers = [
     "Environment :: Console",

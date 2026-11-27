@@ -209,3 +209,23 @@ def test_consensus_detects_pal_drift():
     assert scale == pytest.approx(25.0 / 23.976) and "PAL" in label
     assert n == total
     assert main.consensus_offset(matches, try_scales=False) is None
+
+
+def test_snap_to_voice_sharpens_a_rough_offset():
+    import numpy as np
+
+    rng = np.random.default_rng(3)
+    entries, t = [], 5.0
+    while t < 600:
+        d = rng.uniform(0.8, 4.0)
+        entries.append({"start": t, "end": t + d, "text": "x"})
+        t += d + rng.uniform(0.3, 5.0)
+    # Voice track: the subtitles' speech, 7.30 s later than the file says.
+    voice = np.zeros(int(620 / main.VOICE_RES))
+    for e in entries:
+        a, b = (int((t + 7.3) / main.VOICE_RES) for t in (e["start"], e["end"]))
+        voice[a:b] = 1
+    snapped = main.snap_to_voice(voice, 0.0, entries, -7.0)  # 0.3 s off
+    assert snapped is not None and abs(snapped[0] - -7.3) < 0.015
+    # With nothing to hear, the rough answer stands.
+    assert main.snap_to_voice(np.zeros_like(voice), 0.0, entries, -7.0) is None

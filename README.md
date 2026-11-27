@@ -50,7 +50,7 @@ suba <subtitles> <video> -o <output.srt|vtt>
 | `--align` | Force a strategy: `auto`, `text`, `translate`, `timing` |
 | `--max-shift` | Largest offset to search for in timing mode (default 300 s) |
 | `--min-peak-ratio` | How clearly the winning offset must beat the runner-up (default 1.4) |
-| `--no-refine` | Don't sharpen a text match against the waveform |
+| `--no-refine` | Skip the final sharpening against the film's voice track |
 | `--no-rescale` | Don't test for PAL/NTSC frame-rate conversions, only a shift |
 | `--min-coverage` | Reject subtitles reaching less than this much of the runtime (default 0.7) |
 
@@ -156,19 +156,24 @@ But modulation smooths, and smoothing costs precision: on clean audio loudness
 scores 0.996 where modulation manages 0.69. So suba computes both, and picks
 whichever correlates better against your subtitles. It says which one won.
 
-It's also *precise*, and that precision is now lent to the other two strategies.
-Matching text tells you which line is playing, but only as accurately as the
-Whisper segment it landed in — and those can run ten seconds long. So after a
-text or translate match, suba shifts the subtitles by its estimate and does a
-short correlation search to recover the leftover error:
+Both detectors are coarse: they place speech to within a few
+tenths of a second, not a few hundredths. So once suba has its answer — from
+text or from timing — it takes one last step with a sharp detector: the
+[WebRTC voice detector](https://github.com/wiseman/py-webrtcvad), the one
+ffsubsync uses, run over the whole film. It may only move the answer by up to
+two seconds:
 
 ```
-Match similarity:  0.875
-Refined on waveform: -0.314 s → -4.264 s (correlation 0.988)
+  matched on speech modulation (40% of frames look like speech)
+  sharpened on voice activity: +7.550 s → +7.400 s
 ```
 
-That example is a real run against Italian audio with English subtitles, where
-the true offset was -4.250 s. Pass `--no-refine` to turn it off.
+The order matters. Searching a film with a sharp voice detector alone is what
+fails under a loud score — it starts hearing the orchestra. Used only to nudge
+an answer already found, it brings the precision without the risk. Over the
+whole film it also settles which frame-rate conversion fits, where five
+minutes of dialogue can't tell 25→24 fps from 25→23.976 fps. Pass
+`--no-refine` to skip it.
 
 ## How it compares
 
@@ -179,30 +184,30 @@ broken in known ways so the right answer is exact:
 
 | Case | Before | suba | ffsubsync |
 |------|--------|------|-----------|
-| en +7.3 s | 0% · 7.30 s | 100% · 0.05 s | 100% · 0.06 s |
-| en -4.1 s | 0% · 4.10 s | 100% · 0.05 s | 100% · 0.06 s |
-| de +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
-| it -4.1 s | 0% · 4.10 s | 100% · 0.10 s | 100% · 0.06 s |
-| fr +12.0 s | 0% · 12.00 s | 100% · 0.10 s | 100% · 0.06 s |
-| ru +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
-| ja +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.06 s |
-| en PAL drift | 7% · 12.09 s | 100% · 0.03 s | 100% · 0.06 s |
-| de PAL drift | 7% · 12.09 s | 100% · 0.09 s | 100% · 0.06 s |
-| es PAL drift +5 s | 3% · 8.09 s | 100% · 0.11 s | 100% · 0.06 s |
-| en +95 s | 0% · 95.00 s | 100% · 0.15 s | 0% · 139.41 s |
-| de +95 s | 0% · 95.00 s | 100% · 0.10 s | 0% · 139.41 s |
-| en +150 s | 0% · 150.00 s | 100% · 0.15 s | 0% · 179.32 s |
-| it +150 s | 0% · 150.00 s | 100% · 0.10 s | 0% · 179.43 s |
+| en +7.3 s | 0% · 7.30 s | 100% · 0.06 s | 100% · 0.06 s |
+| en -4.1 s | 0% · 4.10 s | 100% · 0.06 s | 100% · 0.06 s |
+| de +7.3 s | 0% · 7.30 s | 100% · 0.06 s | 100% · 0.06 s |
+| it -4.1 s | 0% · 4.10 s | 100% · 0.06 s | 100% · 0.06 s |
+| fr +12.0 s | 0% · 12.00 s | 100% · 0.06 s | 100% · 0.06 s |
+| ru +7.3 s | 0% · 7.30 s | 100% · 0.06 s | 100% · 0.06 s |
+| ja +7.3 s | 0% · 7.30 s | 100% · 0.06 s | 100% · 0.06 s |
+| en PAL drift | 7% · 12.09 s | 100% · 0.06 s | 100% · 0.06 s |
+| de PAL drift | 7% · 12.09 s | 100% · 0.06 s | 100% · 0.06 s |
+| es PAL drift +5 s | 3% · 8.09 s | 100% · 0.06 s | 100% · 0.06 s |
+| en +95 s | 0% · 95.00 s | 100% · 0.06 s | 0% · 139.41 s |
+| de +95 s | 0% · 95.00 s | 100% · 0.06 s | 0% · 139.41 s |
+| en +150 s | 0% · 150.00 s | 100% · 0.06 s | 0% · 179.32 s |
+| it +150 s | 0% · 150.00 s | 100% · 0.06 s | 0% · 179.43 s |
 | en +7.3 s, loud score | 0% · 7.30 s | 100% · 0.07 s | 100% · 0.08 s |
-| de +7.3 s, loud score | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.08 s |
-| en +7.3 s, louder score | 0% · 7.30 s | 100% · 0.07 s | 0% · 39.05 s |
-| de +7.3 s, louder score | 0% · 7.30 s | 100% · 0.10 s | 0% · 39.05 s |
+| de +7.3 s, loud score | 0% · 7.30 s | 100% · 0.07 s | 100% · 0.08 s |
+| en +7.3 s, louder score | 0% · 7.30 s | 100% · 0.04 s | 0% · 39.05 s |
+| de +7.3 s, louder score | 0% · 7.30 s | 100% · 0.04 s | 0% · 39.05 s |
 | Sintel's subtitles (another film), en | — | refused | **wrote a wrong file** |
 | Sintel's subtitles (another film), as de | — | refused | **wrote a wrong file** |
 | made-up dialogue track, en | — | refused | **wrote a wrong file** |
 | first 43% of the track (CD1), en +7.3 s | 0% · 7.30 s | refused | 100% · 0.09 s |
 
-Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 13 s, ffsubsync 7 s.
+Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 14 s, ffsubsync 7 s.
 
 ### Two full-length films
 
@@ -216,40 +221,42 @@ both tools agreed with the stated timing to within 0.3 s.
 
 | Case | Before | suba | ffsubsync |
 |------|--------|------|-----------|
-| Charade, en +7.3 s | 0% · 7.30 s | 100% · 0.40 s | 100% · 0.29 s |
-| Charade, en PAL drift | 0% · 146.59 s | 100% · 0.31 s | 100% · 0.29 s |
-| Charade, en +95 s | 0% · 95.00 s | 100% · 0.11 s | 0% · 37.42 s |
-| Charade, en +150 s | 0% · 150.00 s | 100% · 0.26 s | 0% · 67.27 s |
-| Charade, es +7.3 s | 0% · 7.30 s | 100% · 0.20 s | 100% · 0.25 s |
-| Charade, es PAL drift | 0% · 143.48 s | 100% · 0.19 s | 100% · 0.25 s |
-| Charade, es +95 s | 0% · 95.00 s | 100% · 0.20 s | 0% · 36.64 s |
-| Charade, es +150 s | 0% · 150.00 s | 100% · 0.20 s | 0% · 64.06 s |
-| Charade, fr +7.3 s | 0% · 7.30 s | 100% · 0.40 s | 100% · 0.10 s |
-| Charade, fr PAL drift | 0% · 145.42 s | 100% · 0.41 s | 100% · 0.11 s |
-| Charade, fr +95 s | 0% · 95.00 s | 100% · 0.40 s | 0% · 37.04 s |
-| Charade, fr +150 s | 0% · 150.00 s | 100% · 0.30 s | 1% · 66.69 s |
-| Sita, pt +7.3 s | 0% · 7.30 s | 100% · 0.30 s | 100% · 0.04 s |
-| Sita, pt PAL drift | 0% · 77.86 s | 100% · 0.26 s | 100% · 0.05 s |
-| Sita, pt +95 s | 0% · 95.00 s | 100% · 0.30 s | 1% · 34.51 s |
+| Charade, en +7.3 s | 0% · 7.30 s | 100% · 0.29 s | 100% · 0.29 s |
+| Charade, en PAL drift | 0% · 146.59 s | 100% · 0.30 s | 100% · 0.29 s |
+| Charade, en +95 s | 0% · 95.00 s | 100% · 0.29 s | 0% · 37.42 s |
+| Charade, en +150 s | 0% · 150.00 s | 100% · 0.29 s | 0% · 67.27 s |
+| Charade, es +7.3 s | 0% · 7.30 s | 100% · 0.24 s | 100% · 0.25 s |
+| Charade, es PAL drift | 0% · 143.48 s | 100% · 0.24 s | 100% · 0.25 s |
+| Charade, es +95 s | 0% · 95.00 s | 100% · 0.24 s | 0% · 36.64 s |
+| Charade, es +150 s | 0% · 150.00 s | 100% · 0.24 s | 0% · 64.06 s |
+| Charade, fr +7.3 s | 0% · 7.30 s | 100% · 0.10 s | 100% · 0.10 s |
+| Charade, fr PAL drift | 0% · 145.42 s | 100% · 0.10 s | 100% · 0.11 s |
+| Charade, fr +95 s | 0% · 95.00 s | 100% · 0.10 s | 0% · 37.04 s |
+| Charade, fr +150 s | 0% · 150.00 s | 100% · 0.10 s | 1% · 66.69 s |
+| Sita, pt +7.3 s | 0% · 7.30 s | 100% · 0.04 s | 100% · 0.04 s |
+| Sita, pt PAL drift | 0% · 77.86 s | 100% · 0.05 s | 100% · 0.05 s |
+| Sita, pt +95 s | 0% · 95.00 s | 100% · 0.04 s | 1% · 34.51 s |
 | Night of the Living Dead's subtitles on Charade, en | — | refused | **wrote a wrong file** |
 | Night of the Living Dead's subtitles on Charade, as es | — | refused | **wrote a wrong file** |
 
-Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 60 s, ffsubsync 67 s.
+Cells: share of lines within 0.5 s of the official timing · median error. Median run time: suba 64 s, ffsubsync 65 s.
 
 Reading both tables honestly:
 
-- **Ordinary shifts, other languages, PAL drift:** a tie on accuracy — every
-  line lands within half a second either way. ffsubsync is the more precise of
-  the two (on Sita, 0.04 s against suba's 0.30 s median). On a short film it
-  is about twice as fast; on a feature the two take about a minute each.
+- **Ordinary shifts, other languages, PAL drift:** a tie. Every line lands
+  within half a second either way, and the median errors agree to within
+  0.01 s. Where both tools say 0.25–0.3 s on Charade, the volunteer track
+  itself is probably that far off. On a short film ffsubsync is about twice as
+  fast; on a feature the two take about a minute each.
 - **Offsets over a minute** — a different intro, a recap, a studio logo: suba
   fixed all eleven such cases across three films; ffsubsync left at most 1% of
   lines right in each, usually further off than before. Raising its
   `--max-offset-seconds` to 300 didn't change that.
 - **Music louder than the dialogue:** both cope with a loud score. Louder
   still, ffsubsync's voice detection follows the music and lands 39 s out;
-  suba's detector looks for the syllable rhythm of speech rather than
-  loudness, and stays exact.
+  suba finds the offset by the syllable rhythm of speech rather than loudness,
+  and stays exact. (Whisper hears little under that score, so on some runs the
+  text match can't decide and suba falls back to timing alignment.)
 - **Subtitles for a different video**, including another feature's real
   subtitles: ffsubsync always writes a file. suba refused all five — which in
   a library run over hundreds of files is the difference between a visible
@@ -302,7 +309,7 @@ downloaded file. When suba refuses, the subtitle is left untouched.
 - Extracts that audio with ffmpeg
 - Transcribes it with Whisper
 - Matches every distinctive subtitle line against what Whisper heard, and only trusts an offset that at least three lines agree on — under a plain shift or a PAL/NTSC speed conversion
-- Sharpens that offset against the waveform, then shifts (and if needed rescales) every timestamp and writes a fixed SRT
+- Sharpens that offset against the whole film's voice track, then shifts (and if needed rescales) every timestamp and writes a fixed SRT
 
 When the subtitles aren't in the language being spoken, the middle steps change
 — see [Different languages](#different-languages) — but the last one doesn't.

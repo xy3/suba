@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import unicodedata
 import wave
 from pathlib import Path
@@ -16,6 +17,11 @@ try:
     import whisper
 except ImportError:  # timing alignment works without it; load_whisper() explains
     whisper = None
+
+try:
+    import webrtcvad  # the voice detector ffsubsync uses; sharpens the final offset
+except ImportError:
+    webrtcvad = None
 
 
 def load_whisper(model_name: str):
@@ -164,12 +170,15 @@ def extract_audio(
     Whisper wants 16 kHz.  The speech mask only needs enough bandwidth for the
     voice band, so it asks for 8 kHz and halves the bytes on a feature film.
     """
+    # Seeking to 0 is not a no-op: in a file whose video starts a little after
+    # its audio (common in WebM), ffmpeg lines up on the video and drops the
+    # first ~80 ms of sound, skewing every timestamp.  Only seek when needed.
+    seek = ["-ss", str(start_s)] if start_s > 0 else []
     subprocess.run(
         [
             "ffmpeg",
             "-y",
-            "-ss",
-            str(start_s),
+            *seek,
             "-t",
             str(duration_s),
             "-i",
@@ -471,7 +480,7 @@ def line_matches(
     return out
 
 
-def consensus_offset(matches, try_scales: bool = True):
+def consensus_offset(matches, try_scales: bool = True, scales=None):
     """Find the (diff, scale) most matched lines agree on, or None.
 
     One matching line proves nothing: unrelated sentences can look alike, and a
@@ -482,7 +491,8 @@ def consensus_offset(matches, try_scales: bool = True):
     """
     if not matches:
         return None
-    scales = FRAME_RATE_SCALES if try_scales else FRAME_RATE_SCALES[:1]
+    if scales is None:
+        scales = FRAME_RATE_SCALES if try_scales else FRAME_RATE_SCALES[:1]
     best, rival = None, 0
     for label, scale in scales:
         diffs = sorted((st * scale - vt, m) for m in matches for st, vt in [m[:2]])
@@ -758,6 +768,7 @@ def timing_alignment(
     max_shift: float,
     try_scales: bool = True,
     verbose: bool = True,
+    refine: bool = True,
 ) -> tuple[float, float, float, float, str] | None:
     """Align on speech rhythm across the whole film.
 
@@ -825,10 +836,149 @@ def timing_alignment(
             )
             if best[3] != 1.0:
                 print(f"  frame-rate conversion detected: {best[4]}")
+        if refine and best[1] >= TIMING_THRESHOLD:  # no polish for a refusal
+            snapped = snap_to_voice(
+                voice_frames(wav_chunks(path)), lo, scaled_cache[best[3]], best[0]
+            )
+            if snapped is not None:
+                if verbose:
+                    print(
+                        f"  sharpened on voice activity: {best[0]:+.3f} s → {snapped[0]:+.3f} s"
+                    )
+                best = (snapped[0], *best[1:])
         return best[:5]
     finally:
         if os.path.exists(path):
             os.unlink(path)
+
+
+# --------------------------------------------------------------------------- #
+# Final sharpening on voice activity
+# --------------------------------------------------------------------------- #
+
+VOICE_RES = 0.01  # webrtcvad judges 10 ms frames
+VOICE_RATE = 8000
+SNAP_WINDOW = 2.0  # seconds either side of the coarse answer
+
+
+def voice_frames(chunks):
+    """webrtcvad's verdict on every 10 ms frame of 8 kHz mono PCM chunks.
+
+    The coarse search needs detectors that survive a loud score, and those
+    smear speech by a few hundred milliseconds.  webrtcvad is sharp, but
+    on its own it can lock onto music (ffsubsync's failure mode).  Used
+    only within a couple of seconds of an answer already found, it gets the
+    precision without the risk.
+    """
+    import numpy as np
+
+    if webrtcvad is None:
+        return None
+    vad = webrtcvad.Vad(3)
+    size = int(VOICE_RATE * VOICE_RES) * 2  # bytes per frame
+    out, buf = bytearray(), b""
+    for chunk in chunks:
+        buf += chunk
+        n = len(buf) // size
+        out.extend(
+            vad.is_speech(buf[i * size : (i + 1) * size], VOICE_RATE) for i in range(n)
+        )
+        buf = buf[n * size :]
+    frames = np.frombuffer(bytes(out), dtype=np.uint8).astype(np.float64)
+    return frames if len(frames) >= 1000 and 0.02 < frames.mean() < 0.98 else None
+
+
+def wav_chunks(path: str, frames_per_read: int = 1 << 20):
+    with wave.open(path) as w:
+        if (
+            w.getframerate() != VOICE_RATE
+            or w.getsampwidth() != 2
+            or w.getnchannels() != 1
+        ):
+            return
+        while chunk := w.readframes(frames_per_read):
+            yield chunk
+
+
+class VoiceReader:
+    """Decode the whole film's audio and run the voice detector, in the background.
+
+    Decoding a feature takes ffmpeg most of a minute, about as long as Whisper
+    takes on its sample, so the two run side by side.
+    """
+
+    def __init__(self, video_path: str):
+        self.frames = None
+        self._proc = subprocess.Popen(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-i",
+                video_path,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                str(VOICE_RATE),
+                "-f",
+                "s16le",
+                "-",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self):
+        try:
+            stream = self._proc.stdout
+            self.frames = voice_frames(iter(lambda: stream.read(1 << 20), b""))
+        except Exception:  # a failed refinement must never sink the sync
+            self.frames = None
+
+    def result(self):
+        self._thread.join()
+        self._proc.wait()
+        return self.frames if self._proc.returncode == 0 else None
+
+    def stop(self):
+        if self._proc.poll() is None:
+            self._proc.kill()
+        self._proc.wait()
+
+
+def snap_to_voice(
+    voice, t0: float, entries: list[dict], diff: float, window: float = SNAP_WINDOW
+):
+    """Nudge `diff` (subtitle time - diff = video time) onto the voice track.
+
+    Returns (new_diff, score), or None when the nudge isn't trustworthy: a
+    peak pinned to the edge of the window means the answer lies outside it,
+    and a flat window means the detector heard nothing it could use.
+    """
+    import numpy as np
+
+    if voice is None or len(voice) < 100 or not entries:
+        return None
+    voice = np.asarray(voice, dtype=np.float64)
+    t1 = t0 + len(voice) * VOICE_RES
+    sub = _build_mask(
+        [(e["start"] - diff, e["end"] - diff) for e in entries],
+        t0 - window,
+        t1 + window,
+        VOICE_RES,
+    ).astype(np.float64)
+    scores = _lag_scores(voice, sub)
+    if scores is None or not len(scores):
+        return None
+    j = int(np.argmax(scores))
+    correction = window - j * VOICE_RES
+    if abs(correction) > 0.9 * window or scores[j] - np.median(scores) < 0.01:
+        return None
+    return diff - correction, float(scores[j])
 
 
 def refine_offset(
@@ -1176,7 +1326,7 @@ def main():
     ap.add_argument(
         "--no-refine",
         action="store_true",
-        help="Skip refining a text match against the waveform",
+        help="Skip the final sharpening of the offset against the voice track",
     )
     ap.add_argument(
         "--min-coverage",
@@ -1276,7 +1426,11 @@ def main():
         )
         print("  (comparing speech rhythm, so no transcription is needed)")
         found = timing_alignment(
-            args.video, entries, args.max_shift, try_scales=not args.no_rescale
+            args.video,
+            entries,
+            args.max_shift,
+            try_scales=not args.no_rescale,
+            refine=not args.no_refine,
         )
         report_timing(args, entries, found)
         return
@@ -1301,6 +1455,9 @@ def main():
     # 4. Extract audio
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         audio_path = tmp.name
+
+    # The final sharpening reads the whole film; decode it while Whisper works.
+    voice = None if args.no_refine or webrtcvad is None else VoiceReader(args.video)
 
     try:
         extract_audio(args.video, start_s, duration, audio_path)
@@ -1338,6 +1495,9 @@ def main():
         # the waveform, so there is nothing left to transcribe.
         if strategy == "timing":
             print("  (comparing speech rhythm, so no transcription is needed)")
+            if voice is not None:
+                voice.stop()  # timing reads the film itself
+                voice = None
             report_timing(
                 args,
                 entries,
@@ -1346,6 +1506,7 @@ def main():
                     entries,
                     args.max_shift,
                     try_scales=not args.no_rescale,
+                    refine=not args.no_refine,
                 ),
             )
             return
@@ -1383,7 +1544,12 @@ def main():
                 )
                 strategy = revised
                 if strategy == "timing":
-                    found = timing_alignment(args.video, entries, args.max_shift)
+                    if voice is not None:
+                        voice.stop()  # timing reads the film itself
+                        voice = None
+                    found = timing_alignment(
+                        args.video, entries, args.max_shift, refine=not args.no_refine
+                    )
                     report_timing(args, entries, found)
                     return
                 if strategy == "translate":
@@ -1418,6 +1584,24 @@ def main():
                     f"{len(matches)} subtitle lines match the audio, but they "
                     "don't clearly agree on one offset"
                 )
+            # Whisper can hear too little under a loud score to settle it.  The
+            # timing match reads the whole film and has its own refusal gate,
+            # which turns down subtitles from other films just the same.
+            if args.align == "auto":
+                print(f"\n{why[0].upper()}{why[1:]}.")
+                print("Trying speech timing across the whole film instead …")
+                if voice is not None:
+                    voice.stop()
+                    voice = None
+                found = timing_alignment(
+                    args.video,
+                    entries,
+                    args.max_shift,
+                    try_scales=not args.no_rescale,
+                    refine=not args.no_refine,
+                )
+                report_timing(args, entries, found)
+                return
             print(
                 f"\nerror: {why}.\n"
                 "       These subtitles may belong to a different cut or film; "
@@ -1431,17 +1615,47 @@ def main():
             )
             sys.exit(1)
 
+        def rescaled(scale):
+            return [
+                {**e, "start": e["start"] * scale, "end": e["end"] * scale}
+                for e in entries
+            ]
+
+        refined, how = None, ""
+        track = voice.result() if voice is not None else None
+        if track is not None:
+            # Five minutes of lines can't tell 25→24 fps from 25→23.976 fps
+            # (0.1% apart), yet over a feature that gap grows to seconds.  The
+            # whole film's voice track can: score every frame rate the lines
+            # accept and keep the one that fits the film best.
+            options = [found]
+            if not args.no_rescale:
+                options += [
+                    c
+                    for c in (
+                        consensus_offset(matches, scales=[ls])
+                        for ls in FRAME_RATE_SCALES
+                        if ls[1] != found[1]
+                    )
+                    if c is not None
+                ]
+            fits = []
+            for c in options:
+                got = snap_to_voice(track, 0.0, rescaled(c[1]), c[0])
+                if got is not None:
+                    fits.append((got[1], c, got))
+            if fits:
+                _, found, refined = max(fits, key=lambda f: f[0])
+                how = "voice activity"
+
         diff, scale, scale_label, n_agree, n_total, example = found
         sub_entry, wseg = example[3], example[4]
-        scaled = [
-            {**e, "start": e["start"] * scale, "end": e["end"] * scale} for e in entries
-        ]
-
-        refined = (
-            None
-            if args.no_refine
-            else refine_offset(audio_path, scaled, diff, start_s, duration)
-        )
+        scaled = rescaled(scale)
+        if refined is None and not args.no_refine:
+            refined, how = (
+                refine_offset(audio_path, scaled, diff, start_s, duration),
+                "waveform",
+            )
 
         print()
         print("=" * 58)
@@ -1457,7 +1671,7 @@ def main():
         if refined is not None:
             new_diff, rscore = refined
             print(
-                f"  Refined on waveform: {diff:+.3f} s → {new_diff:+.3f} s "
+                f"  Refined on {how}: {diff:+.3f} s → {new_diff:+.3f} s "
                 f"(correlation {rscore:.3f})"
             )
             diff = new_diff
@@ -1466,6 +1680,8 @@ def main():
         write_output(args, entries, diff, scale)
 
     finally:
+        if voice is not None:
+            voice.stop()
         if os.path.exists(audio_path):
             os.unlink(audio_path)
 
